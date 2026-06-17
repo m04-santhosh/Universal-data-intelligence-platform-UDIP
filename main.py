@@ -656,8 +656,7 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
         merged_df = merged_df.where(pd.notnull(merged_df), None)
         
         download_id = str(uuid.uuid4())
-        os.makedirs("temp_downloads", exist_ok=True)
-        filepath = os.path.join("temp_downloads", f"{download_id}.json")
+        
         
         # Parse pandas JSON into a Python list
         json_str = merged_df.to_json(orient='records', date_format='iso', force_ascii=False)
@@ -669,22 +668,13 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
         # Build relationship graphs
         relationship_graphs = build_relationship_graphs(data)
         
-        # Write pretty-printed resolved JSON to disk
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(data, indent=2, ensure_ascii=False))
+        # Store in memory instead of disk
+        IN_MEMORY_DOWNLOADS[download_id] = data
         
-        # 5. Add validation: file size > 0, valid JSON, UTF-8 encoding
-        file_size = os.path.getsize(filepath)
+        json_bytes = json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8')
+        file_size = len(json_bytes)
         if file_size == 0:
-            return JSONResponse(status_code=500, content={"success": False, "error": "Generated JSON file is completely empty (0 bytes)."})
-            
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                json.load(f)
-        except UnicodeDecodeError:
-            return JSONResponse(status_code=500, content={"success": False, "error": "Generated file is not valid UTF-8."})
-        except json.JSONDecodeError as e:
-            return JSONResponse(status_code=500, content={"success": False, "error": f"Generated file is not valid JSON: {str(e)}"})
+            return JSONResponse(status_code=500, content={"success": False, "error": "Generated JSON is completely empty (0 bytes)."})
             
         # 6. Log: record count, file size, download generation success
         logger.info(f"Download generation success. Record count: {len(data)}, File size: {file_size} bytes")
@@ -858,8 +848,7 @@ async def convert_excel_with_mapping(
         merged_df = merged_df.where(pd.notnull(merged_df), None)
         
         download_id = str(uuid.uuid4())
-        os.makedirs("temp_downloads", exist_ok=True)
-        filepath = os.path.join("temp_downloads", f"{download_id}.json")
+        
         
         json_str = merged_df.to_json(orient='records', date_format='iso', force_ascii=False)
         raw_data = json.loads(json_str)
@@ -1086,11 +1075,10 @@ async def execute_query(request: Request, req: QueryRequest):
     if not user:
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
-    filepath = os.path.join("temp_downloads", f"{req.download_id}.json")
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Data not found")
+    if req.download_id not in IN_MEMORY_DOWNLOADS:
+        raise HTTPException(status_code=404, detail="Data not found in memory (it may have expired)")
         
-    df = pd.read_json(filepath)
+    df = pd.DataFrame(IN_MEMORY_DOWNLOADS[req.download_id])
     interpreter = AskYourDataAIInterpreter(df)
     
     try:
@@ -1107,11 +1095,10 @@ async def explore_records(request: Request, download_id: str, page: int = 1, lim
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
         
-    filepath = os.path.join("temp_downloads", f"{download_id}.json")
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="Data not found")
+    if download_id not in IN_MEMORY_DOWNLOADS:
+        raise HTTPException(status_code=404, detail="Data not found in memory (it may have expired)")
         
-    df = pd.read_json(filepath)
+    df = pd.DataFrame(IN_MEMORY_DOWNLOADS[download_id])
     
     if search:
         search = search.lower()
@@ -1144,21 +1131,20 @@ async def download_file(request: Request, download_id: str, format: str = "json"
     if not user:
         raise HTTPException(status_code=401, detail="Unauthorized")
         
-    filepath = os.path.join("temp_downloads", f"{download_id}.json")
-    if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail="File not found")
+    if download_id not in IN_MEMORY_DOWNLOADS:
+        raise HTTPException(status_code=404, detail="File not found in memory")
+        
+    data = IN_MEMORY_DOWNLOADS[download_id]
         
     if format == "json":
-        def iterfile():
-            with open(filepath, mode="rb") as file_like:
-                yield from file_like
+        json_bytes = BytesIO(json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8'))
         return StreamingResponse(
-            iterfile(),
+            json_bytes,
             media_type="application/json",
             headers={"Content-Disposition": f"attachment; filename=normalized_data.json"}
         )
     else:
-        df = pd.read_json(filepath)
+        df = pd.DataFrame(data)
         output = BytesIO()
         if format == "csv":
             df.to_csv(output, index=False)
@@ -1296,8 +1282,6 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
         merged_df = merged_df.where(pd.notnull(merged_df), None)
         
         download_id = str(uuid.uuid4())
-        os.makedirs("temp_downloads", exist_ok=True)
-        filepath = os.path.join("temp_downloads", f"{download_id}.json")
         
         json_str = merged_df.to_json(orient='records', date_format='iso', force_ascii=False)
         raw_data = json.loads(json_str)
@@ -1408,11 +1392,10 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
 @app.post("/api/v1/query")
 async def api_v1_query(request: QueryRequest, user: dict = Depends(get_api_user)):
     try:
-        filepath = os.path.join("temp_downloads", f"{request.download_id}.json")
-        if not os.path.exists(filepath):
-            raise HTTPException(status_code=404, detail="Dataset not found or expired")
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        if request.download_id not in IN_MEMORY_DOWNLOADS:
+            return JSONResponse(status_code=404, content={"success": False, "error": "Data not found in memory"})
+            
+        data = IN_MEMORY_DOWNLOADS[request.download_id]
         df = pd.DataFrame(data)
         ai_interpreter = AskYourDataAIInterpreter(df)
         answer = ai_interpreter.process_query(request.query)

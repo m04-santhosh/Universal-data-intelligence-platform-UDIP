@@ -92,6 +92,12 @@ async def register_page(request: Request):
 
 @app.post("/register")
 async def register(request: Request, name: str = Form(...), email: str = Form(...), password: str = Form(...), confirm_password: str = Form(...)):
+    if len(password) > 72:
+         return templates.TemplateResponse(request=request, name="register.html", context={"error": "Password cannot exceed 72 characters. Please use a shorter password.", "name": name, "email": email})
+
+    if len(password.encode('utf-8')) > 72:
+         return templates.TemplateResponse(request=request, name="register.html", context={"error": "Password contains special characters that exceed the maximum allowed size (72 bytes). Please use a shorter password.", "name": name, "email": email})
+
     if password != confirm_password:
          return templates.TemplateResponse(request=request, name="register.html", context={"error": "Passwords do not match", "name": name, "email": email})
     
@@ -508,8 +514,8 @@ async def analyze_files(request: Request, files: list[UploadFile] = File(...)):
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized. Please log in."})
         
     try:
-        if len(files) < 3:
-            return JSONResponse(status_code=400, content={"success": False, "error": "Please upload at least 3 Excel files."})
+        if len(files) < 2:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Please upload at least 2 Excel files."})
             
         schema_engine = AISchemaDiscoveryEngine(CANONICAL_SCHEMA, SCHEMA_MAPPING)
         
@@ -583,8 +589,8 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized. Please log in."})
         
     try:
-        if len(files) < 3:
-            return JSONResponse(status_code=400, content={"success": False, "error": "Please upload at least 3 Excel files."})
+        if len(files) < 2:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Please upload at least 2 Excel files."})
         
         start_time = time.time()
         all_dataframes = []
@@ -793,8 +799,8 @@ async def convert_excel_with_mapping(
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized. Please log in."})
         
     try:
-        if len(files) < 3:
-            return JSONResponse(status_code=400, content={"success": False, "error": "Please upload at least 3 Excel files."})
+        if len(files) < 2:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Please upload at least 2 Excel files."})
         
         start_time = time.time()
         all_dataframes = []

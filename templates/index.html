@@ -252,27 +252,58 @@
         e.preventDefault();
         dropZone.classList.remove('dragover');
         if (e.dataTransfer.files.length > 0) {
-            fileInput.files = e.dataTransfer.files;
-            updateFilePreview();
+            addFiles(e.dataTransfer.files);
         }
     });
     
-    fileInput.addEventListener('change', updateFilePreview);
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            addFiles(e.target.files);
+            e.target.value = '';
+        }
+    });
+
+    function addFiles(files) {
+        Array.from(files).forEach(file => {
+            if (!uploadedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                uploadedFiles.push(file);
+            }
+        });
+        updateFilePreview();
+    }
     
     function updateFilePreview() {
         filePreviewArea.innerHTML = '';
-        if (fileInput.files.length > 0) {
+        const validationMessage = document.getElementById('validationMessage');
+        
+        if (uploadedFiles.length > 0) {
             filePreviewArea.classList.remove('hidden');
-            analyzeBtn.disabled = false;
-            Array.from(fileInput.files).forEach(file => {
+            
+            const counterDiv = document.createElement('div');
+            counterDiv.style.fontWeight = 'bold';
+            counterDiv.style.marginBottom = '0.5rem';
+            counterDiv.innerText = `${uploadedFiles.length} file(s) selected`;
+            filePreviewArea.appendChild(counterDiv);
+
+            uploadedFiles.forEach(file => {
                 const div = document.createElement('div');
                 div.className = 'file-preview';
                 div.innerHTML = `<i class="fas fa-file-excel"></i> <div><strong>${file.name}</strong><br><small>${(file.size/1024).toFixed(1)} KB</small></div>`;
                 filePreviewArea.appendChild(div);
             });
+            
+            if (uploadedFiles.length < 2) {
+                analyzeBtn.disabled = true;
+                validationMessage.innerText = "Please add at least 2 files.";
+                validationMessage.classList.remove('hidden');
+            } else {
+                analyzeBtn.disabled = false;
+                validationMessage.classList.add('hidden');
+            }
         } else {
             filePreviewArea.classList.add('hidden');
             analyzeBtn.disabled = true;
+            validationMessage.classList.add('hidden');
         }
     }
 
@@ -324,14 +355,14 @@
     });
     
     analyzeBtn.addEventListener('click', async () => {
-        if(fileInput.files.length === 0) return;
+        if(uploadedFiles.length < 2) return;
         
         document.getElementById('loader').style.display = 'block';
         analyzeBtn.disabled = true;
         document.getElementById('errorMsg').style.display = 'none';
         
         const formData = new FormData();
-        Array.from(fileInput.files).forEach(f => formData.append('files', f));
+        uploadedFiles.forEach(f => formData.append('files', f));
         
         try {
             const res = await fetch('/api/analyze_files', { method: 'POST', body: formData });
@@ -399,7 +430,7 @@
         document.getElementById('processBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
         
         const formData = new FormData();
-        Array.from(fileInput.files).forEach(f => formData.append('files', f));
+        uploadedFiles.forEach(f => formData.append('files', f));
         formData.append('mappings', JSON.stringify(currentMappings));
         formData.append('project_name', projName);
         if(templateName) formData.append('template_name', templateName);

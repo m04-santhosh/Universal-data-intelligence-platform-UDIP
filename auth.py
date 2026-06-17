@@ -1,6 +1,6 @@
 import os
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
+import bcrypt
 import jwt
 from fastapi import Request, HTTPException, status
 import database
@@ -10,13 +10,27 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-12345")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    # Truncate to 72 characters before bcrypt hashing
+    password_bytes = plain_password[:72].encode('utf-8')
+    # If the string still exceeds 72 bytes due to multibyte characters, safely truncate to 72 bytes
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+        
+    try:
+        return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
+    except ValueError:
+        return False
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
-
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def get_password_hash(password: str) -> str:
+    # Truncate to 72 characters before bcrypt hashing
+    password_bytes = password[:72].encode('utf-8')
+    # If the string still exceeds 72 bytes due to multibyte characters, safely truncate to 72 bytes
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+        
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()

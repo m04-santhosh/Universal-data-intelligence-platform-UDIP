@@ -349,7 +349,13 @@ new_html = f'''{{% extends "base.html" %}}
             
             if(data.error) throw new Error(data.error);
             
-            currentMappings = data.suggestions;
+            // Convert to array for UI rendering
+            currentMappings = Object.entries(data.ai_suggestions || {}).map(([col, info]) => ({
+                original_field: col,
+                inferred_type: info.match_type || 'Unknown',
+                sample_values: [],
+                suggested_mapping: info.suggested || ''
+            }));
             renderMappings(currentMappings);
             document.getElementById('mappingSection').classList.remove('hidden');
             
@@ -357,7 +363,7 @@ new_html = f'''{{% extends "base.html" %}}
             const tRes = await fetch('/api/v1/templates');
             const tData = await tRes.json();
             const sel = document.getElementById('templateSelect');
-            if(tData.templates) {{
+            if(Array.isArray(tData.templates)) {{
                 tData.templates.forEach(t => {{
                     sel.options.add(new Option(t.template_name, t.template_name));
                 }});
@@ -386,15 +392,21 @@ new_html = f'''{{% extends "base.html" %}}
         container.appendChild(table);
         
         const tbody = document.getElementById('mapBody');
-        mappings.forEach((m, idx) => {{
+        if (Array.isArray(mappings) && mappings.length > 0) {{
+            mappings.forEach((m, idx) => {{
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${{m.original_field || m}}</strong><br><small style="color:var(--text-muted)">Type: ${{m.inferred_type || 'Unknown'}}</small></td>
+                    <td><small>${{(m.sample_values || []).slice(0,3).join(', ')}}</small></td>
+                    <td><input type="text" class="chat-input" style="border-radius:0.25rem; padding:0.5rem;" value="${{m.suggested_mapping || ''}}" onchange="updateMapping(${{idx}}, this.value)"></td>
+                `;
+                tbody.appendChild(tr);
+            }});
+        }} else {{
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><strong>${{m.original_field}}</strong><br><small style="color:var(--text-muted)">Type: ${{m.inferred_type}}</small></td>
-                <td><small>${{m.sample_values.slice(0,3).join(', ')}}</small></td>
-                <td><input type="text" class="chat-input" style="border-radius:0.25rem; padding:0.5rem;" value="${{m.suggested_mapping}}" onchange="updateMapping(${{idx}}, this.value)"></td>
-            `;
+            tr.innerHTML = `<td colspan="3" style="text-align: center; color: #6B7280; font-style: italic; padding: 1rem;">No data available</td>`;
             tbody.appendChild(tr);
-        }});
+        }}
     }}
     
     window.updateMapping = function(idx, val) {{
@@ -410,7 +422,13 @@ new_html = f'''{{% extends "base.html" %}}
         
         const formData = new FormData();
         Array.from(fileInput.files).forEach(f => formData.append('files', f));
-        formData.append('mappings', JSON.stringify(currentMappings));
+        const mappingDict = {};
+        if (Array.isArray(currentMappings)) {
+            currentMappings.forEach(m => {
+                mappingDict[m.original_field || m] = m.suggested_mapping || '';
+            });
+        }
+        formData.append('mappings', JSON.stringify(mappingDict));
         formData.append('project_name', projName);
         if(templateName) formData.append('template_name', templateName);
         

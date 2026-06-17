@@ -390,7 +390,7 @@ new_js = """
                 // AI Insights
                 const insightsContainer = document.getElementById('insightsContainer');
                 insightsContainer.innerHTML = '';
-                if (result.data_insights) {
+                if (Array.isArray(result.data_insights) && result.data_insights.length > 0) {
                     result.data_insights.forEach(insight => {
                         const div = document.createElement('div');
                         div.style.padding = '0.75rem';
@@ -402,23 +402,27 @@ new_js = """
                         div.textContent = insight;
                         insightsContainer.appendChild(div);
                     });
+                } else {
+                    insightsContainer.innerHTML = '<div style="padding: 0.75rem; color: #6B7280; font-style: italic;">No data available</div>';
                 }
 
                 // Recommendations
                 const recContainer = document.getElementById('recommendationsContainer');
                 recContainer.innerHTML = '';
-                if (result.recommendations) {
+                if (Array.isArray(result.recommendations) && result.recommendations.length > 0) {
                     result.recommendations.forEach(rec => {
                         const li = document.createElement('li');
                         li.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> ${rec}`;
                         recContainer.appendChild(li);
                     });
+                } else {
+                    recContainer.innerHTML = '<li style="color: #6B7280; padding: 0.75rem; font-style: italic;">No data available</li>';
                 }
 
                 // Data Catalog
                 const catalogBody = document.getElementById('catalogTableBody');
                 catalogBody.innerHTML = '';
-                if (result.data_catalog) {
+                if (Array.isArray(result.data_catalog) && result.data_catalog.length > 0) {
                     result.data_catalog.forEach(col => {
                         const tr = document.createElement('tr');
                         tr.innerHTML = `
@@ -438,12 +442,14 @@ new_js = """
                         `;
                         catalogBody.appendChild(tr);
                     });
+                } else {
+                    catalogBody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #6B7280; font-style: italic; padding: 1rem;">No data available</td></tr>';
                 }
 
                 // Relationship Explorer
                 const relContainer = document.getElementById('relationshipExplorerContainer');
                 relContainer.innerHTML = '';
-                if (result.relationship_graphs && result.relationship_graphs.length > 0) {
+                if (Array.isArray(result.relationship_graphs) && result.relationship_graphs.length > 0) {
                     result.relationship_graphs.forEach(graph => {
                         const card = document.createElement('div');
                         card.className = 'relationship-card';
@@ -461,7 +467,9 @@ new_js = """
                         const body = document.createElement('div');
                         body.className = 'tree-container';
                         let childrenHtml = '';
-                        graph.children.forEach(child => { childrenHtml += `<li>${child.name}</li>`; });
+                        if (Array.isArray(graph.children)) {
+                            graph.children.forEach(child => { childrenHtml += `<li>${child.name}</li>`; });
+                        }
                         body.innerHTML = `
                             <div class="root-node">
                                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
@@ -474,7 +482,7 @@ new_js = """
                         relContainer.appendChild(card);
                     });
                 } else {
-                    relContainer.innerHTML = '<p style="color: #6B7280;">No relationships discovered.</p>';
+                    relContainer.innerHTML = '<p style="color: #6B7280; font-style: italic;">No data available</p>';
                 }
 
                 // Initial Load of Explorer Table
@@ -513,7 +521,7 @@ new_js = """
                     
                     if (data.columns && data.columns.length > 0) {
                         head.innerHTML = `<tr>${data.columns.map(c => `<th>${c}</th>`).join('')}</tr>`;
-                        body.innerHTML = data.records.map(row => {
+                        body.innerHTML = (Array.isArray(data.records) ? data.records : []).map(row => {
                             return `<tr>${data.columns.map(c => `<td>${row[c] !== null ? row[c] : ''}</td>`).join('')}</tr>`;
                         }).join('');
                     }
@@ -562,7 +570,7 @@ new_js = """
                     body: JSON.stringify({ download_id: currentDownloadId, query: query })
                 });
                 const data = await res.json();
-                if (data.success && data.results) {
+                if (data.success && Array.isArray(data.results)) {
                     nlStatus.textContent = `Returned ${data.results.length} records.`;
                     if (data.results.length > 0) {
                         const cols = Object.keys(data.results[0]);

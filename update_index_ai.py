@@ -169,15 +169,16 @@ new_js = """// Ask Your Data AI
                     if (data.result_type === 'scalar') {
                         aiResponseHtml += `<span style="font-size: 1.125rem; font-weight: 600; color: var(--primary-color);">${data.result}</span></div>`;
                     } else if (data.result_type === 'dataframe') {
-                        aiResponseHtml += `Found ${data.result.length} records.</div>`;
-                        if (data.result.length > 0) {
-                            const cols = Object.keys(data.result[0]);
+                        const arr = Array.isArray(data.result) ? data.result : [];
+                        aiResponseHtml += `Found ${arr.length} records.</div>`;
+                        if (arr.length > 0) {
+                            const cols = Object.keys(arr[0]);
                             let tableHtml = `<div style="max-height: 200px; overflow-y: auto; margin-bottom: 0.5rem;"><table class="ai-result-table"><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
-                            data.result.slice(0, 100).forEach(row => {
+                            arr.slice(0, 100).forEach(row => {
                                 tableHtml += `<tr>${cols.map(c => `<td>${row[c] !== null ? row[c] : ''}</td>`).join('')}</tr>`;
                             });
                             tableHtml += `</tbody></table></div>`;
-                            if (data.result.length > 100) tableHtml += `<div style="font-size: 0.75rem; color: #6B7280;">Showing first 100 records.</div>`;
+                            if (arr.length > 100) tableHtml += `<div style="font-size: 0.75rem; color: #6B7280;">Showing first 100 records.</div>`;
                             aiResponseHtml += tableHtml;
                         }
                     }

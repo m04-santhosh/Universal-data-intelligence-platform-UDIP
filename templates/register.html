@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - Universal Data Intelligence Platform</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --primary-color: #4F46E5;
@@ -31,72 +32,92 @@
             background-color: var(--card-bg);
             border-radius: 0.75rem;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-            padding: 2.5rem;
             width: 100%;
             max-width: 400px;
+            padding: 2.5rem;
+            border: 1px solid var(--border-color);
         }
 
-        .auth-header {
+        .brand {
             text-align: center;
             margin-bottom: 2rem;
         }
 
-        .auth-header h1 {
-            font-size: 1.5rem;
-            font-weight: 700;
+        .brand i {
+            font-size: 2.5rem;
             color: var(--primary-color);
-            margin: 0 0 0.5rem 0;
+            margin-bottom: 1rem;
         }
 
-        .auth-header p {
-            font-size: 0.875rem;
-            color: #6B7280;
+        .brand h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
             margin: 0;
+            color: var(--text-color);
+        }
+
+        .brand p {
+            color: #6B7280;
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
         }
 
         .form-group {
             margin-bottom: 1.25rem;
         }
 
-        .form-label {
+        .form-group label {
             display: block;
             font-size: 0.875rem;
             font-weight: 500;
-            color: #374151;
             margin-bottom: 0.5rem;
+            color: #374151;
         }
 
-        .form-input {
+        .form-control {
             width: 100%;
             padding: 0.75rem 1rem;
+            font-size: 0.875rem;
             border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 0.375rem;
             box-sizing: border-box;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+            transition: border-color 0.15s ease-in-out;
         }
 
-        .form-input:focus {
+        .form-control:focus {
             outline: none;
             border-color: var(--primary-color);
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
         }
 
-        .btn-submit {
+        .btn-primary {
             width: 100%;
             padding: 0.75rem 1.5rem;
             background-color: var(--primary-color);
             color: white;
             border: none;
-            border-radius: 0.5rem;
-            font-size: 1rem;
+            border-radius: 0.375rem;
             font-weight: 500;
+            font-size: 0.875rem;
             cursor: pointer;
             transition: background-color 0.2s;
+            margin-top: 0.5rem;
         }
 
-        .btn-submit:hover {
+        .btn-primary:hover {
             background-color: var(--primary-hover);
+        }
+
+        .error-message {
+            background-color: #FEF2F2;
+            color: #DC2626;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            margin-bottom: 1.25rem;
+            border: 1px solid #FECACA;
+            text-align: center;
         }
 
         .auth-footer {
@@ -115,48 +136,44 @@
         .auth-footer a:hover {
             text-decoration: underline;
         }
-
-        .error-msg {
-            background-color: #FEF2F2;
-            color: #DC2626;
-            padding: 0.75rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            margin-bottom: 1.5rem;
-            border: 1px solid #F87171;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
     <div class="auth-card">
-        <div class="auth-header">
+        <div class="brand">
+            <i class="fas fa-layer-group"></i>
             <h1>Create an Account</h1>
             <p>Get started with UDIP</p>
         </div>
-        
+
         {% if error %}
-        <div class="error-msg">{{ error }}</div>
+        <div class="error-message">
+            {{ error }}
+        </div>
         {% endif %}
 
-        <form action="/register" method="post">
+        <form action="/register" method="POST">
             <div class="form-group">
-                <label for="name" class="form-label">Full Name</label>
-                <input type="text" id="name" name="name" class="form-input" value="{{ name if name else '' }}" required autofocus>
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" class="form-control" value="{{ name if name else '' }}" required autofocus placeholder="John Doe">
             </div>
+            
             <div class="form-group">
-                <label for="email" class="form-label">Email address</label>
-                <input type="email" id="email" name="email" class="form-input" value="{{ email if email else '' }}" required>
+                <label for="email">Email address</label>
+                <input type="email" id="email" name="email" class="form-control" value="{{ email if email else '' }}" required placeholder="name@company.com">
             </div>
+            
             <div class="form-group">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" id="password" name="password" class="form-input" required minlength="6">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" class="form-control" required minlength="6" placeholder="••••••••">
             </div>
+            
             <div class="form-group">
-                <label for="confirm_password" class="form-label">Confirm Password</label>
-                <input type="password" id="confirm_password" name="confirm_password" class="form-input" required minlength="6">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" id="confirm_password" name="confirm_password" class="form-control" required minlength="6" placeholder="••••••••">
             </div>
-            <button type="submit" class="btn-submit">Register</button>
+            
+            <button type="submit" class="btn-primary">Register</button>
         </form>
 
         <div class="auth-footer">

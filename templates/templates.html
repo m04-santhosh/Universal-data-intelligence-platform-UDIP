@@ -1,252 +1,85 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Universal Data Intelligence Platform</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #4F46E5;
-            --primary-hover: #4338CA;
-            --bg-color: #F9FAFB;
-            --text-color: #111827;
-            --border-color: #E5E7EB;
-            --card-bg: #FFFFFF;
+{% extends "base.html" %}
+
+{% block title %}Mapping Templates - Universal Data Intelligence Platform{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">Mapping Templates</h1>
+    <a href="/" class="btn btn-primary"><i class="fas fa-plus"></i> New Template</a>
+</div>
+
+<div class="table-container">
+    {% if mapping_templates %}
+    <table class="saas-table">
+        <thead>
+            <tr>
+                <th>Template Name</th>
+                <th>Date Created</th>
+                <th>Mappings Count</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for template in mapping_templates %}
+            <tr id="template-{{ template.template_id }}">
+                <td style="font-weight: 500;">
+                    <i class="fas fa-code-branch" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
+                    {{ template.template_name }}
+                </td>
+                <td style="color: var(--text-muted);">{{ template.created_at[:16] }}</td>
+                <td>
+                    <span class="badge badge-info">
+                        {{ template.mappings_count }} rules
+                    </span>
+                </td>
+                <td>
+                    <a href="/" class="btn btn-secondary" style="padding: 0.25rem 0.75rem;">Apply</a>
+                    <button onclick="deleteTemplate('{{ template.template_id }}')" class="btn btn-danger" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem;">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon"><i class="fas fa-file-code"></i></div>
+        <h3>No templates yet</h3>
+        <p>Save a mapping template during your next data upload to reuse it later.</p>
+        <a href="/" class="btn btn-primary"><i class="fas fa-cloud-upload-alt"></i> Upload Data</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    async function deleteTemplate(templateId) {
+        if (!confirm("Are you sure you want to delete this template?")) {
+            return;
         }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
-
-        header {
-            width: 100%;
-            background-color: var(--card-bg);
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            padding: 1.5rem 0;
-            text-align: center;
-        }
-
-        main {
-            width: 100%;
-            max-width: 1200px;
-            padding: 2rem;
-            flex-grow: 1;
-            box-sizing: border-box;
-        }
-
-        .dashboard-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-
-        .dashboard-header h2 {
-            font-size: 1.875rem;
-            font-weight: 700;
-            margin: 0;
-            color: var(--text-color);
-        }
-
-        .btn-new {
-            padding: 0.75rem 1.5rem;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 0.375rem;
-            font-weight: 500;
-            text-decoration: none;
-            transition: background-color 0.2s;
-        }
-
-        .btn-new:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .projects-table {
-            width: 100%;
-            border-collapse: collapse;
-            background-color: var(--card-bg);
-            border-radius: 0.5rem;
-            overflow: hidden;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-        }
-
-        .projects-table th {
-            background-color: #F3F4F6;
-            padding: 1rem 1.5rem;
-            text-align: left;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #4B5563;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .projects-table td {
-            padding: 1rem 1.5rem;
-            font-size: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
-            color: #111827;
-        }
-
-        .projects-table tr:hover {
-            background-color: #F9FAFB;
-        }
-
-        .action-btn {
-            padding: 0.5rem 1rem;
-            border: 1px solid transparent;
-            border-radius: 0.375rem;
-            font-size: 0.875rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-decoration: none;
-            display: inline-block;
-        }
-
-        .btn-open {
-            background-color: #EFF6FF;
-            color: #2563EB;
-            border-color: #BFDBFE;
-        }
-
-        .btn-open:hover {
-            background-color: #DBEAFE;
-        }
-
-        .btn-delete {
-            background-color: #FEF2F2;
-            color: #DC2626;
-            border-color: #FECACA;
-            margin-left: 0.5rem;
-        }
-
-        .btn-delete:hover {
-            background-color: #FEE2E2;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 4rem 2rem;
-            background-color: var(--card-bg);
-            border-radius: 0.5rem;
-            border: 2px dashed var(--border-color);
-        }
-
-        .empty-state h3 {
-            font-size: 1.25rem;
-            color: #374151;
-            margin-bottom: 0.5rem;
-        }
-
-        .empty-state p {
-            color: #6B7280;
-            margin-bottom: 1.5rem;
-        }
-    </style>
-</head>
-<body>
-
-    <header>
-        <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 2rem; width: 100%; box-sizing: border-box;">
-            <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">Universal Data Intelligence Platform</h1>
-            {% if user %}
-            <div style="display: flex; align-items: center; gap: 1.5rem; font-size: 0.875rem;">
-                <span style="font-weight: 500; color: #374151; margin-right: 1rem;">{{ user.name }}</span>
-                <a href="/" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Upload</a>
-                <a href="/dashboard" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Projects</a>
-                <a href="/history" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">History</a>
-                <a href="/templates" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Templates</a>
-                <a href="/logout" style="padding: 0.4rem 0.8rem; background-color: #EF4444; color: white; text-decoration: none; border-radius: 0.375rem; font-weight: 500;">Logout</a>
-            </div>
-            {% endif %}
-        </div>
-    </header>
-
-    <main>
-        <div class="dashboard-header">
-            <h2>My Templates</h2>
-            <a href="/" class="btn-new">New Template</a>
-        </div>
-
-        {% if mapping_templates %}
-        <table class="projects-table">
-            <thead>
-                <tr>
-                    <th>Template Name</th>
-                    <th>Date Created</th>
-                    <th>Mappings Count</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for template in mapping_templates %}
-                <tr id="template-{{ template.template_id }}">
-                    <td style="font-weight: 500;">{{ template.template_name }}</td>
-                    <td>{{ template.created_at[:16] }}</td>
-                    <td>
-                        <span style="background-color: #DBEAFE; color: #1E40AF; padding: 0.2rem 0.6rem; border-radius: 9999px; font-weight: 600; font-size: 0.875rem;">
-                            {{ template.mappings_count }}
-                        </span>
-                    </td>
-                    <td>
-                        <a href="/" class="action-btn btn-open">Apply</a>
-                        <button onclick="deleteTemplate('{{ template.template_id }}')" class="action-btn btn-delete">Delete</button>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        {% else %}
-        <div class="empty-state">
-            <h3>No templates yet</h3>
-            <p>Save a mapping template during your next data upload to reuse it later.</p>
-            <a href="/" class="btn-new">Upload Data</a>
-        </div>
-        {% endif %}
-    </main>
-
-    <script>
-        async function deleteTemplate(templateId) {
-            if (!confirm("Are you sure you want to delete this template?")) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`/api/templates/${templateId}`, {
-                    method: 'DELETE'
-                });
+        try {
+            const response = await fetch(`/api/templates/${templateId}`, {
+                method: 'DELETE'
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                const row = document.getElementById(`template-${templateId}`);
+                row.remove();
                 
-                const result = await response.json();
-                
-                if (result.success) {
-                    const row = document.getElementById(`template-${templateId}`);
-                    row.remove();
-                    
-                    const tbody = document.querySelector('.projects-table tbody');
-                    if (tbody && tbody.children.length === 0) {
-                        location.reload(); 
-                    }
-                } else {
-                    alert(result.error || "Failed to delete template");
+                const tbody = document.querySelector('.saas-table tbody');
+                if (tbody && tbody.children.length === 0) {
+                    location.reload(); 
                 }
-            } catch (err) {
-                console.error(err);
-                alert("An error occurred while deleting the template.");
+            } else {
+                alert(result.error || "Failed to delete template");
             }
+        } catch (err) {
+            console.error(err);
+            alert("An error occurred while deleting the template.");
         }
-    </script>
-</body>
-</html>
+    }
+</script>
+{% endblock %}

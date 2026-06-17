@@ -1,1375 +1,430 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Universal Data Intelligence Platform</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #4F46E5;
-            --primary-hover: #4338CA;
-            --bg-color: #F9FAFB;
-            --text-color: #111827;
-            --border-color: #E5E7EB;
-            --card-bg: #FFFFFF;
-        }
+{% extends "base.html" %}
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-        }
+{% block title %}Upload - Universal Data Intelligence Platform{% endblock %}
 
-        header {
-            width: 100%;
-            background-color: var(--card-bg);
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            padding: 1.5rem 0;
-            text-align: center;
-        }
+{% block extra_css %}
+<style>
+    .upload-zone {
+        border: 2px dashed var(--border-color);
+        border-radius: var(--border-radius-lg);
+        padding: 4rem 2rem;
+        text-align: center;
+        background-color: var(--surface-color);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        margin-bottom: 2rem;
+    }
+    .upload-zone.dragover {
+        border-color: var(--primary-color);
+        background-color: var(--primary-light);
+    }
+    .upload-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+    .file-preview-container {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        text-align: left;
+    }
+    .file-preview {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        background-color: #F9FAFB;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+    }
+    .file-preview i {
+        color: #10B981;
+        margin-right: 0.75rem;
+        font-size: 1.25rem;
+    }
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 500px;
+        background-color: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-lg);
+        overflow: hidden;
+    }
+    .chat-messages {
+        flex-grow: 1;
+        padding: 1.5rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        background-color: #F9FAFB;
+    }
+    .message-bubble {
+        max-width: 80%;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        line-height: 1.5;
+    }
+    .message-user {
+        align-self: flex-end;
+        background-color: var(--primary-color);
+        color: white;
+        border-bottom-right-radius: 0;
+    }
+    .message-ai {
+        align-self: flex-start;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        border-bottom-left-radius: 0;
+    }
+    .chat-input-area {
+        padding: 1rem;
+        background-color: white;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 0.5rem;
+    }
+    .chat-input {
+        flex-grow: 1;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+        outline: none;
+    }
+    .chat-input:focus {
+        border-color: var(--primary-color);
+    }
+    .chat-send {
+        background-color: var(--primary-color);
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+    }
+    .suggested-prompts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .prompt-pill {
+        padding: 0.5rem 1rem;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.2s;
+    }
+    .prompt-pill:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+    .hidden { display: none !important; }
+</style>
+{% endblock %}
 
-        h1 {
-            margin: 0;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--primary-color);
-        }
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Data Ingestion Engine</h1>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">Upload Excel files to automatically map schemas, resolve entities, and prepare data.</p>
+    </div>
+</div>
 
-        main {
-            width: 100%;
-            max-width: 800px;
-            padding: 2rem;
-            flex-grow: 1;
-        }
-
-        .upload-card {
-            background-color: var(--card-bg);
-            border-radius: 0.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-            text-align: center;
-            border: 2px dashed var(--border-color);
-            transition: border-color 0.3s ease;
-        }
-
-        .upload-card:hover {
-            border-color: var(--primary-color);
-        }
-
-        .file-input-wrapper {
-            position: relative;
-            margin-bottom: 1rem;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        .file-label {
-            display: inline-block;
-            padding: 0.75rem 1.5rem;
-            background-color: var(--primary-color);
-            color: white;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.2s;
-        }
-
-        .file-label:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .file-name {
-            margin-top: 1rem;
-            font-size: 0.875rem;
-            color: #6B7280;
-        }
-
-        button {
-            padding: 0.75rem 1.5rem;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.2s;
-            margin-top: 1rem;
-        }
-
-        button:hover {
-            background-color: var(--primary-hover);
-        }
-
-        button:disabled {
-            background-color: #9CA3AF;
-            cursor: not-allowed;
-        }
-
-        .results-section {
-            margin-top: 2rem;
-            display: none;
-        }
-
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-
-        .results-header h2 {
-            font-size: 1.25rem;
-            margin: 0;
-        }
-
-        pre {
-            background-color: #1F2937;
-            color: #F9FAFB;
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            overflow-x: auto;
-            font-size: 0.875rem;
-            max-height: 500px;
-            overflow-y: auto;
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
-        }
-
-        .loader {
-            border: 3px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 3px solid var(--primary-color);
-            width: 24px;
-            height: 24px;
-            -webkit-animation: spin 1s linear infinite;
-            animation: spin 1s linear infinite;
-            display: none;
-            margin: 1rem auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
+<div class="saas-card" id="uploadSection" style="margin-bottom: 2rem;">
+    <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+        <h3>Drag & Drop your Excel files here</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">or click to browse from your computer</p>
+        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" class="hidden">
         
-        .error-message {
-            color: #DC2626;
-            margin-top: 1rem;
-            font-weight: 500;
-        }
-
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-top: 1.5rem;
-            margin-bottom: 2rem;
-        }
-        
-        .dashboard-card {
-            background-color: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
-            border: 1px solid var(--border-color);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .card-title {
-            font-size: 0.875rem;
-            color: #6B7280;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-        }
-
-        .card-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--text-color);
-        }
-
-        .score-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-weight: 700;
-            font-size: 1.25rem;
-            color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .score-green { background-color: #10B981; }
-        .score-yellow { background-color: #F59E0B; }
-        .score-red { background-color: #EF4444; }
-
-        .table-container {
-            overflow-x: auto;
-            border-radius: 0.5rem;
-            border: 1px solid var(--border-color);
-            background-color: var(--card-bg);
-            margin-top: 1rem;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        }
-
-        .mapping-table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-
-        .mapping-table th {
-            background-color: #F3F4F6;
-            padding: 1rem;
-            font-size: 0.875rem;
-            font-weight: 600;
-            color: #4B5563;
-            border-bottom: 1px solid var(--border-color);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .mapping-table td {
-            padding: 1rem;
-            font-size: 0.875rem;
-            border-bottom: 1px solid var(--border-color);
-            vertical-align: middle;
-        }
-
-        .mapping-table tr:hover {
-            background-color: #F9FAFB;
-        }
-
-        .mapping-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .progress-container {
-            width: 120px;
-            height: 8px;
-            background-color: #E5E7EB;
-            border-radius: 9999px;
-            display: inline-block;
-            vertical-align: middle;
-            overflow: hidden;
-        }
-
-        .progress-bar {
-            height: 100%;
-            border-radius: 9999px;
-            transition: width 0.5s ease-in-out;
-        }
-
-        .match-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            gap: 0.25rem;
-        }
-
-        .badge-ai {
-            background-color: #EDE9FE;
-            color: #6D28D9;
-        }
-
-        .badge-dict {
-            background-color: #E0F2FE;
-            color: #0369A1;
-        }
-
-        /* Tooltip Styles */
-        .tooltip-container {
-            position: relative;
-            display: inline-flex;
-            align-items: center;
-        }
-
-        .tooltip-container .tooltip-text {
-            visibility: hidden;
-            width: 250px;
-            background-color: #1F2937;
-            color: #fff;
-            text-align: left;
-            border-radius: 0.375rem;
-            padding: 0.75rem;
-            position: absolute;
-            z-index: 10;
-            bottom: 125%;
-            left: 50%;
-            margin-left: -125px;
-            opacity: 0;
-            transition: opacity 0.3s;
-            font-size: 0.75rem;
-            line-height: 1.4;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            font-weight: normal;
-        }
-
-        .tooltip-container .tooltip-text::after {
-            content: "";
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            margin-left: -5px;
-            border-width: 5px;
-            border-style: solid;
-            border-color: #1F2937 transparent transparent transparent;
-        }
-
-        .tooltip-container:hover .tooltip-text {
-            visibility: visible;
-            opacity: 1;
-        }
-
-        /* Relationship Explorer Tree Styles */
-        .relationship-section {
-            margin-top: 2rem;
-        }
-
-        .relationship-card {
-            background-color: var(--card-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 0.5rem;
-            margin-bottom: 1rem;
-            overflow: hidden;
-        }
-
-        .relationship-header {
-            padding: 1rem 1.5rem;
-            background-color: #F9FAFB;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            border-bottom: 1px solid transparent;
-            transition: background-color 0.2s;
-        }
-
-        .relationship-header:hover {
-            background-color: #F3F4F6;
-        }
-        
-        .relationship-header.open {
-            border-bottom-color: var(--border-color);
-        }
-
-        .entity-name {
-            font-weight: 700;
-            color: var(--text-color);
-            font-size: 1rem;
-        }
-
-        .entity-meta {
-            font-size: 0.875rem;
-            color: #6B7280;
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-        }
-
-        .tree-container {
-            padding: 1.5rem;
-            display: none;
-            background-color: #FFFFFF;
-        }
-
-        .relationship-header.open + .tree-container {
-            display: block;
-        }
-
-        .css-tree {
-            margin: 0;
-            padding: 0;
-            list-style: none;
-            font-family: monospace;
-            font-size: 0.875rem;
-            color: #374151;
-        }
-
-        .css-tree li {
-            position: relative;
-            padding-left: 1.5rem;
-            margin-bottom: 0.5rem;
-            line-height: 1.5;
-        }
-
-        .css-tree li::before {
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            border-left: 1px solid #9CA3AF;
-            height: 100%;
-        }
-        
-        .css-tree li::after {
-            content: "";
-            position: absolute;
-            top: 0.75em;
-            left: 0;
-            border-top: 1px solid #9CA3AF;
-            width: 1rem;
-        }
-
-        .css-tree li:last-child::before {
-            height: 0.75em; /* Stop the vertical line at the last item */
-        }
-        
-        .root-node {
-            font-weight: bold;
-            color: var(--primary-color);
-            margin-bottom: 0.5rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-family: monospace;
-            font-size: 1rem;
-        }
+        <div id="filePreviewArea" class="file-preview-container hidden"></div>
+        <div id="validationMessage" style="color: var(--danger-color); margin-top: 1rem; font-weight: 500;" class="hidden"></div>
+    </div>
     
-        /* Enterprise Dashboard Layout Styles */
-        .dashboard-grid-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-        .recommendation-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .recommendation-list li {
-            padding: 0.75rem 1rem;
-            background-color: #EFF6FF;
-            color: #1E3A8A;
-            margin-bottom: 0.5rem;
-            border-radius: 0.375rem;
-            border-left: 4px solid #3B82F6;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        .catalog-table, .explore-table, .nl-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-            margin-bottom: 1rem;
-        }
-        .catalog-table th, .explore-table th, .nl-table th {
-            background-color: #F9FAFB;
-            padding: 0.75rem 1rem;
-            text-align: left;
-            font-weight: 600;
-            color: #374151;
-            border-bottom: 1px solid var(--border-color);
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .catalog-table td, .explore-table td, .nl-table td {
-            padding: 0.75rem 1rem;
-            border-bottom: 1px solid var(--border-color);
-            color: #111827;
-        }
-        .catalog-table tbody tr:hover, .explore-table tbody tr:hover, .nl-table tbody tr:hover {
-            background-color: #F9FAFB;
-        }
-        .export-buttons {
-            display: flex;
-            gap: 0.5rem;
-        }
-        .export-btn {
-            background-color: white;
-            border: 1px solid var(--border-color);
-            color: #374151;
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 0.875rem;
-            transition: all 0.2s;
-        }
-        .export-btn:hover {
-            background-color: #F3F4F6;
-        }
-        .export-btn.active {
-            background-color: var(--primary-color);
-            color: white;
-            border-color: var(--primary-color);
-        }
-        .nl-query-container {
-            display: flex;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .nl-query-input {
-            flex-grow: 1;
-            padding: 0.75rem 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-            font-size: 1rem;
-        }
-        .nl-query-btn {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            padding: 0 1.5rem;
-            border-radius: 0.375rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .nl-query-btn:hover {
-            background-color: #4F46E5;
-        }
-        .explore-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-        }
-        .search-input {
-            padding: 0.5rem 1rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-            width: 300px;
-        }
-        .pagination-controls {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-        .page-btn {
-            padding: 0.25rem 0.75rem;
-            border: 1px solid var(--border-color);
-            background: white;
-            border-radius: 0.25rem;
-            cursor: pointer;
-        }
-        .page-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .table-scroll-container {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-        }
+    <div style="display: flex; justify-content: flex-end;">
+        <button id="analyzeBtn" class="btn btn-primary" style="padding: 0.75rem 2rem;" disabled>
+            <i class="fas fa-magic"></i> Analyze Schemas
+        </button>
+    </div>
+    <div id="loader" style="display: none; text-align: center; padding: 1rem;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; color: var(--primary-color);"></i>
+        <span style="margin-left: 0.5rem; font-weight: 500;">Processing...</span>
+    </div>
+    <div id="errorMsg" style="color: var(--danger-color); margin-top: 1rem; font-weight: 500; text-align: center; display: none;"></div>
+</div>
 
+<!-- Mappings Section (Simplified for brevity, similar structure to old but with SaaS classes) -->
+<div id="mappingSection" class="saas-card hidden" style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0;">AI Schema Mapping</h3>
+        <div style="display: flex; gap: 1rem;">
+            <input type="text" id="projectName" placeholder="Project Name" class="chat-input" style="border-radius: 0.25rem;">
+            <select id="templateSelect" class="chat-input" style="border-radius: 0.25rem;"><option value="">-- Or Load Template --</option></select>
+        </div>
+    </div>
     
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            max-height: 400px;
-            overflow-y: auto;
-            padding: 1rem;
-            background-color: #F9FAFB;
-            border-radius: 0.5rem;
-            border: 1px solid var(--border-color);
-            margin-bottom: 1rem;
-        }
-        .chat-bubble {
-            max-width: 80%;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            line-height: 1.4;
-        }
-        .chat-bubble.user {
-            background-color: var(--primary-color);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 0;
-        }
-        .chat-bubble.ai {
-            background-color: white;
-            color: #111827;
-            align-self: flex-start;
-            border-bottom-left-radius: 0;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .suggested-chips {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-bottom: 1rem;
-        }
-        .chip {
-            background-color: #E0E7FF;
-            color: #3730A3;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            cursor: pointer;
-            border: 1px solid #C7D2FE;
-            transition: all 0.2s;
-        }
-        .chip:hover {
-            background-color: #C7D2FE;
-        }
-        .ai-result-table {
-            width: 100%;
-            margin-top: 1rem;
-            border-collapse: collapse;
-            font-size: 0.75rem;
-        }
-        .ai-result-table th {
-            background-color: #F3F4F6;
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-        }
-        .ai-result-table td {
-            padding: 0.5rem;
-            border: 1px solid var(--border-color);
-        }
-
-    </style>
-</head>
-<body>
-
-    <header>
-        <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 2rem; width: 100%; box-sizing: border-box;">
-            <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">Universal Data Intelligence Platform</h1>
-            {% if user %}
-            <div style="display: flex; align-items: center; gap: 1.5rem; font-size: 0.875rem;">
-                <span style="font-weight: 500; color: #374151; margin-right: 1rem;">{{ user.name }}</span>
-                <a href="/" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Upload</a>
-                <a href="/dashboard" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Projects</a>
-                <a href="/history" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">History</a>
-                <a href="/templates" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Templates</a>
-                <a href="/logout" style="padding: 0.4rem 0.8rem; background-color: #EF4444; color: white; text-decoration: none; border-radius: 0.375rem; font-weight: 500;">Logout</a>
-            </div>
-            {% else %}
-            <div style="display: flex; gap: 1rem; align-items: center; font-size: 0.875rem;">
-                <a href="/login" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Login</a>
-                <a href="/register" style="padding: 0.5rem 1rem; background-color: var(--primary-color); color: white; text-decoration: none; border-radius: 0.375rem; font-weight: 500; transition: background-color 0.2s;">Register</a>
-            </div>
-            {% endif %}
+    <div id="mappingContainer"></div>
+    
+    <div style="display: flex; justify-content: space-between; margin-top: 1.5rem; align-items: center;">
+        <div>
+            <input type="checkbox" id="saveTemplate" style="margin-right: 0.5rem;">
+            <label for="saveTemplate" style="font-weight: 500;">Save as new template</label>
+            <input type="text" id="templateName" placeholder="Template Name" class="chat-input hidden" style="border-radius: 0.25rem; margin-left: 1rem;">
         </div>
-    </header>
+        <button id="processBtn" class="btn btn-primary"><i class="fas fa-cogs"></i> Process Data</button>
+    </div>
+</div>
 
-    <main>
-        <div class="upload-card" id="uploadCard">
-            <h2 style="margin-top: 0; margin-bottom: 1.5rem; font-size: 1.25rem;">Upload Excel Files (Min 3)</h2>
-            <div id="fileListContainer" style="text-align: left; margin-bottom: 1rem;"></div>
-            <form id="uploadForm">
-                <div class="file-input-wrapper">
-                    <input type="file" id="fileInput" accept=".xlsx, .xls">
-                    <button type="button" id="addFileBtn" class="file-label" style="display:inline-flex; align-items:center; gap:0.5rem; border:none;">
-                        <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                        Add File
-                    </button>
-                </div>
-                <div class="file-name" id="statusText" style="margin-bottom: 1rem;">Please add at least 3 files.</div>
-                <button type="submit" id="submitBtn" disabled>Analyze & Map</button>
-            </form>
-            <div class="loader" id="loader"></div>
-            <div class="error-message" id="errorMessage"></div>
+<!-- Results Section -->
+<div id="resultsSection" class="hidden">
+    <div class="saas-card" style="margin-bottom: 2rem;">
+        <h3 style="margin-top: 0;">Processing Complete! <span style="color: #10B981;"><i class="fas fa-check-circle"></i></span></h3>
+        <div style="display: flex; gap: 2rem; margin-top: 1.5rem;">
+            <div><p style="color: var(--text-muted); margin: 0;">Records Processed</p><h2 id="statsTotal" style="margin: 0; color: var(--primary-color);">0</h2></div>
+            <div><p style="color: var(--text-muted); margin: 0;">Quality Score</p><h2 id="statsScore" style="margin: 0; color: #10B981;">0</h2></div>
         </div>
-
-        <div class="upload-card" id="mappingSection" style="display: none; max-width: 800px;">
-            <h2 style="margin-top: 0; margin-bottom: 1rem; font-size: 1.25rem;">Schema Mapping</h2>
-            <div id="templateSuggestion" style="display:none; background-color: #EFF6FF; border: 1px solid #BFDBFE; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; text-align: left;">
-                <div style="font-weight: 600; color: #1E3A8A; margin-bottom: 0.5rem;">Suggested Template</div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span id="suggestedTemplateName" style="font-weight: 500; color: #1E40AF;"></span> 
-                        <span id="suggestedTemplateScore" style="margin-left: 0.5rem; background-color: #DBEAFE; color: #1E40AF; padding: 0.1rem 0.4rem; border-radius: 9999px; font-size: 0.75rem;"></span>
-                    </div>
-                    <button id="applyTemplateBtn" style="padding: 0.4rem 0.8rem; background-color: #3B82F6; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-weight: 500; font-size: 0.875rem;">Apply Template</button>
-                </div>
-            </div>
-
-            <form id="mappingForm">
-                <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; text-align: left; font-size: 0.875rem;">
-                    <thead>
-                        <tr>
-                            <th style="padding: 0.75rem; border-bottom: 1px solid #E5E7EB;">Original Column</th>
-                            <th style="padding: 0.75rem; border-bottom: 1px solid #E5E7EB;">System Suggestion</th>
-                            <th style="padding: 0.75rem; border-bottom: 1px solid #E5E7EB;">Manual Override</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mappingTableBody">
-                    </tbody>
-                </table>
-
-                <div style="text-align: left; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem; background: #F9FAFB; padding: 1rem; border-radius: 0.5rem; border: 1px solid #E5E7EB;">
-                    <input type="checkbox" id="saveTemplateCheckbox" style="cursor: pointer;">
-                    <label for="saveTemplateCheckbox" style="font-weight: 500; cursor: pointer; user-select: none;">Save as Template</label>
-                    <input type="text" id="templateNameInput" placeholder="Template Name" style="padding: 0.4rem 0.5rem; border: 1px solid #D1D5DB; border-radius: 0.25rem; margin-left: 1rem; display: none; width: 200px;">
-                </div>
-
-                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" id="cancelMappingBtn" style="padding: 0.5rem 1rem; background-color: #F3F4F6; color: #374151; border: 1px solid #D1D5DB; border-radius: 0.375rem; cursor: pointer; font-weight: 500;">Cancel</button>
-                    <button type="submit" id="processDataBtn" style="padding: 0.5rem 1.5rem; background-color: var(--primary-color); color: white; border: none; border-radius: 0.375rem; cursor: pointer; font-weight: 500;">Process Data</button>
-                </div>
-                <div class="loader" id="mappingLoader" style="display: none;"></div>
-                <div class="error-message" id="mappingErrorMessage"></div>
-            </form>
-        </div>
-
+    </div>
+    
+    <!-- ChatGPT Style AI Interface -->
+    <div class="saas-card">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem;"><i class="fas fa-robot" style="color: var(--primary-color);"></i> Ask Your Data AI</h3>
         
-        <div class="results-section" id="resultsSection">
-            <div class="results-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h2 style="margin: 0; font-size: 1.5rem;">Enterprise Data Dashboard</h2>
-                <div style="display: flex; gap: 1rem; align-items: center;">
-                    <span id="processingTimeDisplay" style="font-size: 0.875rem; color: #6B7280; font-weight: 500;"></span>
-                    <div class="export-buttons">
-                        <button class="export-btn active" id="btnExportJson">JSON</button>
-                        <button class="export-btn" id="btnExportCsv">CSV</button>
-                        <button class="export-btn" id="btnExportExcel">Excel</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Trust Report & Quality Breakdown -->
-            <div style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; position: relative;">
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <h3 style="margin: 0; font-size: 1.25rem;">Trust Report</h3>
-                        <div class="tooltip-container">
-                            <svg width="18" height="18" fill="none" stroke="#6B7280" viewBox="0 0 24 24" style="cursor: help;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            <div class="tooltip-text">
-                                <strong>How is the score calculated?</strong><br/><br/>
-                                Starts at 100.<br/>
-                                • Missing values heavily reduce completeness.<br/>
-                                • Minor conflicts moderately reduce consistency.<br/>
-                                • Duplicates are merged successfully without penalty.<br/><br/>
-                                Final score combines these metrics.
-                            </div>
-                        </div>
-                    </div>
-                    <div id="qualityScoreBadge" class="score-badge"></div>
-                </div>
-                
-                <div class="dashboard-grid" id="scoreBreakdownGrid" style="display: grid; background-color: #F9FAFB; padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color); margin-top: 0;">
-                    <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: #6B7280; text-transform: uppercase; font-weight: 600;">Completeness</div>
-                        <div id="breakdownCompleteness" style="font-size: 1.25rem; font-weight: 700; color: var(--text-color); margin-top: 0.25rem;">-</div>
-                    </div>
-                    <div style="text-align: center; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
-                        <div style="font-size: 0.75rem; color: #6B7280; text-transform: uppercase; font-weight: 600;">Consistency</div>
-                        <div id="breakdownConsistency" style="font-size: 1.25rem; font-weight: 700; color: var(--text-color); margin-top: 0.25rem;">-</div>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="font-size: 0.75rem; color: #6B7280; text-transform: uppercase; font-weight: 600;">Duplicates</div>
-                        <div id="breakdownDuplicates" style="font-size: 1.25rem; font-weight: 700; color: #10B981; margin-top: 0.25rem;">-</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Insights and Recommendations Layout -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem;">
-                <!-- AI Insights -->
-                <div style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <h3 style="margin-top: 0; font-size: 1.25rem; margin-bottom: 1rem;">Data Insights Panel</h3>
-                    <div class="dashboard-grid-cards" id="insightsContainer" style="display: grid; grid-template-columns: 1fr; gap: 0.75rem;">
-                        <!-- Insights injected here -->
-                    </div>
-                </div>
-
-                <!-- Recommendations -->
-                <div style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <h3 style="margin-top: 0; font-size: 1.25rem; margin-bottom: 1rem;">Smart Recommendations</h3>
-                    <ul class="recommendation-list" id="recommendationsContainer">
-                        <!-- Recommendations injected here -->
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Data Catalog -->
-            <div style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; font-size: 1.25rem; margin-bottom: 1rem;">Data Catalog</h3>
-                <div class="table-scroll-container">
-                    <table class="catalog-table">
-                        <thead>
-                            <tr>
-                                <th>Column Name</th>
-                                <th>Data Type</th>
-                                <th>Description</th>
-                                <th>Null %</th>
-                                <th>Unique Count</th>
-                                <th>Sample Values</th>
-                            </tr>
-                        </thead>
-                        <tbody id="catalogTableBody">
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- ASK YOUR DATA AI Engine -->
-            <div style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
-                    <svg width="24" height="24" fill="none" stroke="var(--primary-color)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                    <h3 style="margin: 0; font-size: 1.25rem;">Ask Your Data AI</h3>
-                </div>
-                
-                <div class="suggested-chips">
-                    <span class="chip" onclick="document.getElementById('aiQueryInput').value='How many customers exist?'; document.getElementById('aiQueryBtn').click();">How many customers exist?</span>
-                    <span class="chip" onclick="document.getElementById('aiQueryInput').value='Show duplicate records'; document.getElementById('aiQueryBtn').click();">Show duplicate records</span>
-                    <span class="chip" onclick="document.getElementById('aiQueryInput').value='Top customers by revenue'; document.getElementById('aiQueryBtn').click();">Top customers by revenue</span>
-                    <span class="chip" onclick="document.getElementById('aiQueryInput').value='Customers with missing values'; document.getElementById('aiQueryBtn').click();">Customers with missing values</span>
-                    <span class="chip" onclick="document.getElementById('aiQueryInput').value='Count customers by city'; document.getElementById('aiQueryBtn').click();">Count customers by city</span>
-                </div>
-
-                <div class="chat-container" id="chatContainer">
-                    <div class="chat-bubble ai">
-                        <strong>AI Assistant:</strong> Hello! I'm your Enterprise Data AI. Ask me any question about your newly generated dataset.
-                    </div>
-                </div>
-
-                <form id="aiQueryForm" class="nl-query-container" style="margin-bottom: 0;">
-                    <input type="text" id="aiQueryInput" class="nl-query-input" placeholder="Ask a question in plain English...">
-                    <button type="submit" class="nl-query-btn" id="aiQueryBtn">Ask</button>
-                </form>
-            </div>
-
-            <!-- Searchable Record Explorer -->
-            <div style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <h3 style="margin-top: 0; font-size: 1.25rem; margin-bottom: 1rem;">Searchable Record Explorer</h3>
-                <div class="explore-controls">
-                    <input type="text" id="exploreSearchInput" class="search-input" placeholder="Search records...">
-                    <div class="pagination-controls">
-                        <span id="explorePageInfo" style="font-size: 0.875rem; color: #374151;">Page 1 of 1</span>
-                        <button class="page-btn" id="explorePrevBtn" disabled>&lt; Prev</button>
-                        <button class="page-btn" id="exploreNextBtn" disabled>Next &gt;</button>
-                    </div>
-                </div>
-                <div class="table-scroll-container">
-                    <table class="explore-table">
-                        <thead id="exploreTableHeader"></thead>
-                        <tbody id="exploreTableBody"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Relationship Explorer -->
-            <div class="relationship-section" style="background-color: white; border: 1px solid var(--border-color); border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 0;">
-                <h3 style="margin-top: 0; font-size: 1.25rem; margin-bottom: 1rem;">Relationship Explorer</h3>
-                <div id="relationshipExplorerContainer">
-                    <!-- Tree cards will be injected here -->
+        <div class="chat-container">
+            <div class="chat-messages" id="chatHistory">
+                <div class="message-bubble message-ai">
+                    Hello! I've analyzed your newly ingested data. Ask me anything about trends, anomalies, or summaries.
                 </div>
             </div>
             
+            <div style="padding: 1rem 1rem 0 1rem; background-color: #F9FAFB;">
+                <div class="suggested-prompts">
+                    <div class="prompt-pill" onclick="setPrompt(this.innerText)">Summarize the total revenue</div>
+                    <div class="prompt-pill" onclick="setPrompt(this.innerText)">Find any duplicate customer records</div>
+                    <div class="prompt-pill" onclick="setPrompt(this.innerText)">What are the key insights?</div>
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Message Ask Your Data AI...">
+                <button class="chat-send" onclick="sendQuery()"><i class="fas fa-paper-plane"></i></button>
+            </div>
         </div>
+    </div>
+</div>
+{% endblock %}
 
-    </main>
+{% block extra_js %}
+<script>
+    // Polyfill or adapt previous logic
+    let uploadedFiles = [];
+    let currentMappings = null;
+    let currentDownloadId = null;
+    let relationshipData = null;
+    let templatesData = [];
 
+    // Drag and Drop Logic
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const filePreviewArea = document.getElementById('filePreviewArea');
+    const analyzeBtn = document.getElementById('analyzeBtn');
     
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const addFileBtn = document.getElementById('addFileBtn');
-        const fileListContainer = document.getElementById('fileListContainer');
-        const statusText = document.getElementById('statusText');
-        const submitBtn = document.getElementById('submitBtn');
-        const uploadForm = document.getElementById('uploadForm');
-        const loader = document.getElementById('loader');
-        const resultsSection = document.getElementById('resultsSection');
-        const errorMessage = document.getElementById('errorMessage');
-        const processingTimeDisplay = document.getElementById('processingTimeDisplay');
-
-        // Explore state
-        let currentDownloadId = null;
-        let explorePage = 1;
-        let exploreLimit = 100;
-        let exploreSearch = '';
-        let exploreSort = '';
-        let exploreTotalPages = 1;
-
-        let selectedFiles = [];
-
-        addFileBtn.addEventListener('click', () => { fileInput.click(); });
-
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                selectedFiles.push(file);
-                updateUI();
-                fileInput.value = '';
-            }
-        });
-
-        function updateUI() {
-            fileListContainer.innerHTML = '';
-            selectedFiles.forEach((f, index) => {
-                const item = document.createElement('div');
-                item.style.padding = '0.5rem';
-                item.style.backgroundColor = '#F3F4F6';
-                item.style.marginBottom = '0.5rem';
-                item.style.borderRadius = '0.25rem';
-                item.style.fontSize = '0.875rem';
-                item.style.display = 'flex';
-                item.style.justifyContent = 'space-between';
-                item.innerHTML = `<span>File ${index + 1}: ${f.name}</span> <span style="color:#10B981; font-weight:bold;">&#10003; Added</span>`;
-                fileListContainer.appendChild(item);
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('dragover');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            fileInput.files = e.dataTransfer.files;
+            updateFilePreview();
+        }
+    });
+    
+    fileInput.addEventListener('change', updateFilePreview);
+    
+    function updateFilePreview() {
+        filePreviewArea.innerHTML = '';
+        if (fileInput.files.length > 0) {
+            filePreviewArea.classList.remove('hidden');
+            analyzeBtn.disabled = false;
+            Array.from(fileInput.files).forEach(file => {
+                const div = document.createElement('div');
+                div.className = 'file-preview';
+                div.innerHTML = `<i class="fas fa-file-excel"></i> <div><strong>${file.name}</strong><br><small>${(file.size/1024).toFixed(1)} KB</small></div>`;
+                filePreviewArea.appendChild(div);
             });
-
-            if (selectedFiles.length >= 3) {
-                statusText.textContent = `${selectedFiles.length} files ready to process.`;
-                statusText.style.color = '#10B981';
-                submitBtn.disabled = false;
-                errorMessage.textContent = '';
-            } else {
-                statusText.textContent = `Please add ${3 - selectedFiles.length} more file(s).`;
-                statusText.style.color = '#6B7280';
-                submitBtn.disabled = true;
-            }
+        } else {
+            filePreviewArea.classList.add('hidden');
+            analyzeBtn.disabled = true;
         }
+    }
 
-        let currentAnalysisResult = null;
-
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (selectedFiles.length < 3) return;
-
-            const formData = new FormData();
-            selectedFiles.forEach(f => formData.append('files', f));
-
-            submitBtn.disabled = true;
-            loader.style.display = 'block';
-            errorMessage.textContent = '';
-            
-            try {
-                const response = await fetch('/api/analyze_files', { method: 'POST', body: formData });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || errorData.detail || 'Error analyzing files');
-                }
-
-                currentAnalysisResult = await response.json();
-                
-                // Hide upload card, show mapping screen
-                document.getElementById('uploadCard').style.display = 'none';
-                document.getElementById('mappingSection').style.display = 'block';
-                
-                // Populate mappings
-                const tbody = document.getElementById('mappingTableBody');
-                tbody.innerHTML = '';
-                
-                const validOptions = [
-                    'customer_id', 'customer_name', 'phone_number', 'phone_service', 
-                    'revenue', 'address', 'email_address', 'date_of_birth', 'ignore'
-                ];
-                
-                currentAnalysisResult.columns.forEach(col => {
-                    const tr = document.createElement('tr');
-                    
-                    const suggestionInfo = currentAnalysisResult.ai_suggestions[col];
-                    const suggestedCol = suggestionInfo.suggested;
-                    
-                    let optionsHtml = '';
-                    validOptions.forEach(opt => {
-                        const selected = opt === suggestedCol ? 'selected' : '';
-                        optionsHtml += `<option value="${opt}" ${selected}>${opt}</option>`;
-                    });
-                    
-                    tr.innerHTML = `
-                        <td style="padding: 0.75rem; border-bottom: 1px solid #E5E7EB; font-weight: 500;">${col}</td>
-                        <td style="padding: 0.75rem; border-bottom: 1px solid #E5E7EB;">
-                            <span style="background-color: ${suggestionInfo.match_type !== 'Unmapped' ? '#D1FAE5' : '#F3F4F6'}; color: ${suggestionInfo.match_type !== 'Unmapped' ? '#065F46' : '#6B7280'}; padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem;">
-                                ${suggestedCol} (${suggestionInfo.confidence}%)
-                            </span>
-                        </td>
-                        <td style="padding: 0.75rem; border-bottom: 1px solid #E5E7EB;">
-                            <select class="mapping-dropdown" data-col="${col}" style="padding: 0.4rem; border: 1px solid #D1D5DB; border-radius: 0.25rem;">
-                                ${optionsHtml}
-                            </select>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
-                
-                const suggestionDiv = document.getElementById('templateSuggestion');
-                if (currentAnalysisResult.suggested_template) {
-                    suggestionDiv.style.display = 'block';
-                    document.getElementById('suggestedTemplateName').textContent = currentAnalysisResult.suggested_template.template_name;
-                    document.getElementById('suggestedTemplateScore').textContent = `${currentAnalysisResult.suggested_template.match_score}% Match`;
-                } else {
-                    suggestionDiv.style.display = 'none';
-                }
-                
-            } catch (err) {
-                errorMessage.textContent = err.message;
-            } finally {
-                loader.style.display = 'none';
-                submitBtn.disabled = false;
-            }
-        });
-
-        // Template application
-        document.getElementById('applyTemplateBtn').addEventListener('click', (e) => {
-            e.preventDefault();
-            if (!currentAnalysisResult || !currentAnalysisResult.suggested_template) return;
-            const mapping = currentAnalysisResult.suggested_template.mapping;
-            document.querySelectorAll('.mapping-dropdown').forEach(select => {
-                const colName = select.getAttribute('data-col');
-                if (mapping[colName]) {
-                    select.value = mapping[colName];
-                }
+    // ChatGPT Logic
+    function setPrompt(text) {
+        document.getElementById('chatInput').value = text;
+    }
+    
+    function appendChatMessage(role, content) {
+        const chatHistory = document.getElementById('chatHistory');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message-bubble ${role === 'user' ? 'message-user' : 'message-ai'}`;
+        msgDiv.innerHTML = content.replace(/\n/g, '<br>');
+        chatHistory.appendChild(msgDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+    
+    document.getElementById('chatInput').addEventListener('keypress', (e) => {
+        if(e.key === 'Enter') sendQuery();
+    });
+    
+    async function sendQuery() {
+        const input = document.getElementById('chatInput');
+        const q = input.value.trim();
+        if(!q) return;
+        
+        appendChatMessage('user', q);
+        input.value = '';
+        
+        appendChatMessage('ai', '<i class="fas fa-ellipsis-h fa-fade"></i> Thinking...');
+        const bubbles = document.querySelectorAll('.message-bubble');
+        const lastBubble = bubbles[bubbles.length-1];
+        
+        try {
+            const res = await fetch('/api/query', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q, project_id: currentDownloadId })
             });
-            alert("Template applied successfully.");
-        });
-
-        // Toggle template name input
-        document.getElementById('saveTemplateCheckbox').addEventListener('change', (e) => {
-            document.getElementById('templateNameInput').style.display = e.target.checked ? 'block' : 'none';
-        });
-
-        document.getElementById('cancelMappingBtn').addEventListener('click', () => {
-            document.getElementById('uploadCard').style.display = 'block';
-            document.getElementById('mappingSection').style.display = 'none';
-        });
-
-        const mappingForm = document.getElementById('mappingForm');
-        mappingForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const mappingData = {};
-            document.querySelectorAll('.mapping-dropdown').forEach(select => {
-                mappingData[select.getAttribute('data-col')] = select.value;
-            });
-            
-            const saveTemplate = document.getElementById('saveTemplateCheckbox').checked;
-            const templateName = document.getElementById('templateNameInput').value;
-            
-            if (saveTemplate && !templateName.trim()) {
-                document.getElementById('mappingErrorMessage').textContent = "Please provide a name for your template.";
-                return;
-            }
-
-            const formData = new FormData();
-            selectedFiles.forEach(f => formData.append('files', f));
-            formData.append('mappings', JSON.stringify(mappingData));
-            if (saveTemplate) {
-                formData.append('template_name', templateName);
-            }
-
-            const procBtn = document.getElementById('processDataBtn');
-            const mLoader = document.getElementById('mappingLoader');
-            const mErr = document.getElementById('mappingErrorMessage');
-            
-            procBtn.disabled = true;
-            mLoader.style.display = 'block';
-            mErr.textContent = '';
-            
-            const startTime = performance.now();
-
-            try {
-                const response = await fetch('/api/convert_with_mapping', { method: 'POST', body: formData });
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error || errorData.detail || 'Error converting file');
-                }
-
-                const result = await response.json();
-                const endTime = performance.now();
-                const timeTakenMs = (endTime - startTime).toFixed(0);
-                
-                document.getElementById('mappingSection').style.display = 'none';
-                renderResults(result, timeTakenMs);
-                
-            } catch (err) {
-                mErr.textContent = err.message;
-            } finally {
-                mLoader.style.display = 'none';
-                procBtn.disabled = false;
-                selectedFiles = [];
-                updateUI();
-            }
-        });
-
-        function renderResults(result, timeTakenMs) {
-            currentDownloadId = result.download_id;
-            
-            const trustReport = result.trust_report || {};
-            processingTimeDisplay.textContent = `Processing Time: ${trustReport.processing_time || timeTakenMs + ' ms'}`;
-
-            // Trust Score Badge
-            const score = trustReport.quality_score || 0;
-            const badge = document.getElementById('qualityScoreBadge');
-            badge.textContent = `Quality Score: ${score}`;
-            badge.className = 'score-badge';
-            if (score >= 90) badge.classList.add('score-green');
-            else if (score >= 70) badge.classList.add('score-yellow');
-            else badge.classList.add('score-red');
-            
-            if (trustReport.score_breakdown) {
-                document.getElementById('breakdownCompleteness').textContent = trustReport.score_breakdown.completeness_score;
-                document.getElementById('breakdownConsistency').textContent = trustReport.score_breakdown.consistency_score;
-                document.getElementById('breakdownDuplicates').textContent = trustReport.score_breakdown.duplicate_score;
-            }
-
-            // AI Insights
-            const insightsContainer = document.getElementById('insightsContainer');
-            insightsContainer.innerHTML = '';
-            if (result.data_insights) {
-                result.data_insights.forEach(insight => {
-                    const div = document.createElement('div');
-                    div.style.padding = '0.75rem';
-                    div.style.backgroundColor = '#F9FAFB';
-                    div.style.border = '1px solid #E5E7EB';
-                    div.style.borderRadius = '0.375rem';
-                    div.style.fontSize = '0.875rem';
-                    div.style.color = '#374151';
-                    div.textContent = insight;
-                    insightsContainer.appendChild(div);
-                });
-            }
-
-            // Recommendations
-            const recContainer = document.getElementById('recommendationsContainer');
-            recContainer.innerHTML = '';
-            if (result.recommendations) {
-                result.recommendations.forEach(rec => {
-                    const li = document.createElement('li');
-                    li.innerHTML = `<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> ${rec}`;
-                    recContainer.appendChild(li);
-                });
-            }
-
-            // Data Catalog
-            const catalogBody = document.getElementById('catalogTableBody');
-            catalogBody.innerHTML = '';
-            if (result.data_catalog) {
-                result.data_catalog.forEach(col => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td style="font-weight: 600; color: var(--primary-color);">${col.column_name}</td>
-                        <td><span style="background: #E5E7EB; padding: 0.1rem 0.4rem; border-radius: 0.25rem;">${col.data_type}</span></td>
-                        <td>${col.description}</td>
-                        <td>
-                            <div style="display:flex; align-items:center; gap:0.5rem;">
-                                <div style="flex-grow:1; height:6px; background:#E5E7EB; border-radius:3px; overflow:hidden;">
-                                    <div style="height:100%; width:${col.null_percentage}%; background:${col.null_percentage > 50 ? '#EF4444' : (col.null_percentage > 0 ? '#F59E0B' : '#10B981')};"></div>
-                                </div>
-                                <span>${col.null_percentage}%</span>
-                            </div>
-                        </td>
-                        <td>${col.unique_values}</td>
-                        <td style="color: #6B7280;">${col.sample_values.join(', ')}</td>
-                    `;
-                    catalogBody.appendChild(tr);
-                });
-            }
-
-            // Relationship Explorer
-            const relContainer = document.getElementById('relationshipExplorerContainer');
-            relContainer.innerHTML = '';
-            if (result.relationship_graphs && result.relationship_graphs.length > 0) {
-                result.relationship_graphs.forEach(graph => {
-                    const card = document.createElement('div');
-                    card.className = 'relationship-card';
-                    
-                    const header = document.createElement('div');
-                    header.className = 'relationship-header';
-                    header.innerHTML = `
-                        <div class="entity-name">${graph.name || graph.entity_id}</div>
-                        <div class="entity-meta">
-                            <span style="background-color: #E5E7EB; padding: 0.1rem 0.5rem; border-radius: 0.25rem;">ID: ${graph.entity_id}</span>
-                            <span style="background-color: #E5E7EB; padding: 0.1rem 0.5rem; border-radius: 0.25rem;">Connections: ${graph.relationship_count}</span>
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                        </div>
-                    `;
-                    const body = document.createElement('div');
-                    body.className = 'tree-container';
-                    let childrenHtml = '';
-                    graph.children.forEach(child => { childrenHtml += `<li>${child.name}</li>`; });
-                    body.innerHTML = `
-                        <div class="root-node">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
-                            ${graph.name || graph.entity_id}
-                        </div>
-                        <ul class="css-tree">${childrenHtml || '<li style="color: #9CA3AF; font-style: italic;">No relationships found</li>'}</ul>
-                    `;
-                    header.addEventListener('click', () => header.classList.toggle('open'));
-                    card.appendChild(header); card.appendChild(body);
-                    relContainer.appendChild(card);
-                });
-            } else {
-                relContainer.innerHTML = '<p style="color: #6B7280;">No relationships discovered.</p>';
-            }
-
-            // Initial Load of Explorer Table
-            loadExploreData();
-
-            resultsSection.style.display = 'block';
-            loader.style.display = 'none';
-            submitBtn.disabled = false;
-            selectedFiles = [];
-            updateUI();
+            const data = await res.json();
+            lastBubble.innerHTML = data.response;
+        } catch(e) {
+            lastBubble.innerHTML = "Sorry, I encountered an error while processing your request.";
         }
+    }
 
-        // Check if there is initial_project_data
-        {% if initial_project_data %}
-            try {
-                const initialData = {{ initial_project_data | safe }};
-                document.querySelector('.upload-card').style.display = 'none';
-                renderResults(initialData, '0');
-            } catch (e) {
-                console.error("Failed to parse initial project data", e);
-            }
-        {% endif %}
-
-
-        // Searchable Record Explorer
-        async function loadExploreData() {
-            if (!currentDownloadId) return;
-            try {
-                const params = new URLSearchParams({ page: explorePage, limit: exploreLimit });
-                if (exploreSearch) params.append('search', exploreSearch);
-                if (exploreSort) params.append('sort_by', exploreSort);
-
-                const res = await fetch(`/api/explore/${currentDownloadId}?${params}`);
-                const data = await res.json();
-                
-                if(data.success) {
-                    exploreTotalPages = Math.ceil(data.total / exploreLimit) || 1;
-                    document.getElementById('explorePageInfo').textContent = `Page ${data.page} of ${exploreTotalPages} (${data.total} records)`;
-                    document.getElementById('explorePrevBtn').disabled = data.page <= 1;
-                    document.getElementById('exploreNextBtn').disabled = data.page >= exploreTotalPages;
-                    
-                    const head = document.getElementById('exploreTableHeader');
-                    const body = document.getElementById('exploreTableBody');
-                    
-                    if (data.columns && data.columns.length > 0) {
-                        head.innerHTML = `<tr>${data.columns.map(c => `<th>${c}</th>`).join('')}</tr>`;
-                        body.innerHTML = data.records.map(row => {
-                            return `<tr>${data.columns.map(c => `<td>${row[c] !== null ? row[c] : ''}</td>`).join('')}</tr>`;
-                        }).join('');
-                    }
-                }
-            } catch (err) { console.error("Explore API Error:", err); }
-        }
-
-        document.getElementById('exploreSearchInput').addEventListener('input', (e) => {
-            exploreSearch = e.target.value;
-            explorePage = 1;
-            loadExploreData();
-        });
-
-        document.getElementById('explorePrevBtn').addEventListener('click', () => {
-            if (explorePage > 1) { explorePage--; loadExploreData(); }
-        });
-        document.getElementById('exploreNextBtn').addEventListener('click', () => {
-            if (explorePage < exploreTotalPages) { explorePage++; loadExploreData(); }
-        });
-
-        // Ask Your Data AI
-        const aiForm = document.getElementById('aiQueryForm');
-        const aiInput = document.getElementById('aiQueryInput');
-        const aiBtn = document.getElementById('aiQueryBtn');
-        const chatContainer = document.getElementById('chatContainer');
-
-        function appendChatBubble(text, sender, isHtml = false) {
-            const bubble = document.createElement('div');
-            bubble.className = `chat-bubble ${sender}`;
-            if (isHtml) {
-                bubble.innerHTML = text;
-            } else {
-                bubble.textContent = text;
-            }
-            chatContainer.appendChild(bubble);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        aiForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentDownloadId) {
-                appendChatBubble("Please upload and process data first.", 'ai');
-                return;
-            }
-            const query = aiInput.value.trim();
-            if (!query) return;
-
-            appendChatBubble(query, 'user');
-            aiInput.value = '';
-            aiBtn.disabled = true;
-            aiBtn.textContent = 'Thinking...';
-
-            const loadingBubble = document.createElement('div');
-            loadingBubble.className = 'chat-bubble ai';
-            loadingBubble.innerHTML = '<span style="color:#6B7280; font-style:italic;">Analyzing query intent and executing...</span>';
-            chatContainer.appendChild(loadingBubble);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            try {
-                const res = await fetch('/api/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ download_id: currentDownloadId, query: query })
+    document.getElementById('saveTemplate').addEventListener('change', (e) => {
+        document.getElementById('templateName').classList.toggle('hidden', !e.target.checked);
+    });
+    
+    analyzeBtn.addEventListener('click', async () => {
+        if(fileInput.files.length === 0) return;
+        
+        document.getElementById('loader').style.display = 'block';
+        analyzeBtn.disabled = true;
+        document.getElementById('errorMsg').style.display = 'none';
+        
+        const formData = new FormData();
+        Array.from(fileInput.files).forEach(f => formData.append('files', f));
+        
+        try {
+            const res = await fetch('/api/analyze_files', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            if(data.error) throw new Error(data.error);
+            
+            currentMappings = data.suggestions;
+            renderMappings(currentMappings);
+            document.getElementById('mappingSection').classList.remove('hidden');
+            
+            // Load templates
+            const tRes = await fetch('/api/v1/templates');
+            const tData = await tRes.json();
+            const sel = document.getElementById('templateSelect');
+            if(tData.templates) {
+                tData.templates.forEach(t => {
+                    sel.options.add(new Option(t.template_name, t.template_name));
                 });
-                const data = await res.json();
-                
-                chatContainer.removeChild(loadingBubble);
-
-                if (data.success) {
-                    let aiResponseHtml = `<div style="margin-bottom: 0.5rem;"><strong>Answer:</strong> `;
-                    
-                    if (data.result_type === 'scalar') {
-                        aiResponseHtml += `<span style="font-size: 1.125rem; font-weight: 600; color: var(--primary-color);">${data.result}</span></div>`;
-                    } else if (data.result_type === 'dataframe') {
-                        aiResponseHtml += `Found ${data.result.length} records.</div>`;
-                        if (data.result.length > 0) {
-                            const cols = Object.keys(data.result[0]);
-                            let tableHtml = `<div style="max-height: 200px; overflow-y: auto; margin-bottom: 0.5rem;"><table class="ai-result-table"><thead><tr>${cols.map(c => `<th>${c}</th>`).join('')}</tr></thead><tbody>`;
-                            data.result.slice(0, 100).forEach(row => {
-                                tableHtml += `<tr>${cols.map(c => `<td>${row[c] !== null ? row[c] : ''}</td>`).join('')}</tr>`;
-                            });
-                            tableHtml += `</tbody></table></div>`;
-                            if (data.result.length > 100) tableHtml += `<div style="font-size: 0.75rem; color: #6B7280;">Showing first 100 records.</div>`;
-                            aiResponseHtml += tableHtml;
-                        }
-                    }
-
-                    let confColor = data.confidence >= 90 ? '#10B981' : (data.confidence >= 70 ? '#F59E0B' : '#EF4444');
-
-                    aiResponseHtml += `
-                        <div style="background: #F3F4F6; padding: 0.75rem; border-radius: 0.375rem; margin-top: 0.5rem; font-size: 0.75rem;">
-                            <div style="margin-bottom: 0.25rem;"><strong>Execution Logic:</strong> <code style="background: #E5E7EB; padding: 0.1rem 0.25rem; border-radius: 0.25rem; color: #374151;">${data.interpretation || 'N/A'}</code></div>
-                            <div style="margin-bottom: 0.25rem;"><strong>Insight:</strong> ${data.insight || 'None'}</div>
-                            <div><strong>Confidence:</strong> <span style="color: ${confColor}; font-weight: 600;">${data.confidence || 0}%</span></div>
-                        </div>
-                    `;
-
-                    appendChatBubble(aiResponseHtml, 'ai', true);
-                } else {
-                    appendChatBubble(`Error: ${data.error || 'Failed to process query'}`, 'ai');
-                }
-            } catch (err) {
-                if (chatContainer.contains(loadingBubble)) chatContainer.removeChild(loadingBubble);
-                appendChatBubble(`Error: ${err.message}`, 'ai');
-            } finally {
-                aiBtn.disabled = false;
-                aiBtn.textContent = 'Ask';
+                sel.addEventListener('change', (e) => {
+                    const tt = tData.templates.find(x => x.template_name === e.target.value);
+                    if(tt) { currentMappings = tt.mapping; renderMappings(currentMappings); }
+                });
             }
-        });
-
-        // Exports
-        function triggerDownload(format) {
-            if (!currentDownloadId) return;
-            window.location.href = `/api/download/${currentDownloadId}?format=${format}`;
+            
+        } catch(e) {
+            document.getElementById('errorMsg').innerText = e.message;
+            document.getElementById('errorMsg').style.display = 'block';
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+            analyzeBtn.disabled = false;
         }
-        document.getElementById('btnExportJson').addEventListener('click', () => triggerDownload('json'));
-        document.getElementById('btnExportCsv').addEventListener('click', () => triggerDownload('csv'));
-        document.getElementById('btnExportExcel').addEventListener('click', () => triggerDownload('excel'));
-
-    </script>
-</body>
-</html>
+    });
+    
+    function renderMappings(mappings) {
+        const container = document.getElementById('mappingContainer');
+        container.innerHTML = '';
+        
+        const table = document.createElement('table');
+        table.className = 'saas-table';
+        table.innerHTML = `<thead><tr><th>Original Field</th><th>Sample Data</th><th>Mapped To</th></tr></thead><tbody id="mapBody"></tbody>`;
+        container.appendChild(table);
+        
+        const tbody = document.getElementById('mapBody');
+        mappings.forEach((m, idx) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${m.original_field}</strong><br><small style="color:var(--text-muted)">Type: ${m.inferred_type}</small></td>
+                <td><small>${m.sample_values.slice(0,3).join(', ')}</small></td>
+                <td><input type="text" class="chat-input" style="border-radius:0.25rem; padding:0.5rem;" value="${m.suggested_mapping}" onchange="updateMapping(${idx}, this.value)"></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+    
+    window.updateMapping = function(idx, val) {
+        currentMappings[idx].suggested_mapping = val;
+    }
+    
+    document.getElementById('processBtn').addEventListener('click', async () => {
+        const projName = document.getElementById('projectName').value || 'Untitled Project';
+        const templateName = document.getElementById('saveTemplate').checked ? document.getElementById('templateName').value : '';
+        
+        document.getElementById('processBtn').disabled = true;
+        document.getElementById('processBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        
+        const formData = new FormData();
+        Array.from(fileInput.files).forEach(f => formData.append('files', f));
+        formData.append('mappings', JSON.stringify(currentMappings));
+        formData.append('project_name', projName);
+        if(templateName) formData.append('template_name', templateName);
+        
+        try {
+            const res = await fetch('/api/convert_with_mapping', { method: 'POST', body: formData });
+            const data = await res.json();
+            
+            if(data.error) throw new Error(data.error);
+            
+            currentDownloadId = data.project_id;
+            
+            document.getElementById('mappingSection').classList.add('hidden');
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            document.getElementById('statsTotal').innerText = data.insights.total_records.toLocaleString();
+            document.getElementById('statsScore').innerText = data.insights.quality_metrics.overall_quality_score;
+            
+        } catch(e) {
+            alert(e.message);
+        } finally {
+            document.getElementById('processBtn').disabled = false;
+            document.getElementById('processBtn').innerHTML = '<i class="fas fa-cogs"></i> Process Data';
+        }
+    });
+</script>
+{% endblock %}

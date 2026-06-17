@@ -1,0 +1,110 @@
+[
+  {
+    "entity_id": "ENT0001"
+  },
+  {
+    "entity_id": "ENT0002",
+    "customer_name": "Bob ",
+    "phone_number": 7852963102.0
+  },
+  {
+    "entity_id": "ENT0003",
+    "customer_name": "William",
+    "phone_number": 7859621031.0
+  },
+  {
+    "entity_id": "ENT0004",
+    "customer_name": "Sandy",
+    "phone_number": 4562891234.0
+  },
+  {
+    "entity_id": "ENT0005",
+    "customer_name": "John Doe",
+    "phone_number": 9876543210.0,
+    "customer_id": "C001",
+    "Account Balance": 250000.0,
+    "City": "Bangalore",
+    "revenue": 1200.0
+  },
+  {
+    "entity_id": "ENT0006",
+    "customer_name": "Alice Smith",
+    "phone_number": 9988776655.0,
+    "customer_id": "C002",
+    "Account Balance": 180000.0,
+    "City": "Mumbai",
+    "revenue": 900.0
+  },
+  {
+    "entity_id": "ENT0007",
+    "customer_name": "Robert King",
+    "phone_number": 9123456780.0,
+    "customer_id": "C003",
+    "Account Balance": 320000.0,
+    "City": "Chennai",
+    "revenue": 1500.0
+  },
+  {
+    "entity_id": "ENT0008",
+    "customer_name": "Priya Sharma",
+    "phone_number": 9876123456.0,
+    "customer_id": "C004",
+    "Account Balance": 150000.0,
+    "City": "Hyderabad",
+    "revenue": 1100.0
+  },
+  {
+    "entity_id": "ENT0009",
+    "customer_name": "Arjun Patel",
+    "phone_number": 9988112233.0,
+    "customer_id": "C005",
+    "Account Balance": 450000.0,
+    "City": "Pune",
+    "revenue": 1300.0
+  },
+  {
+    "entity_id": "ENT0010",
+    "customer_name": "Neha Gupta",
+    "phone_number": 9876541230.0,
+    "customer_id": "C006",
+    "Account Balance": 275000.0,
+    "City": "Delhi",
+    "revenue": 1400.0
+  },
+  {
+    "entity_id": "ENT0011",
+    "customer_name": "Rahul Verma",
+    "phone_number": 9123409876.0,
+    "customer_id": "C007",
+    "Account Balance": 200000.0,
+    "City": "Kolkata",
+    "revenue": 1000.0
+  },
+  {
+    "entity_id": "ENT0012",
+    "customer_name": "Sneha Rao",
+    "phone_number": 9988001122.0,
+    "customer_id": "C008",
+    "Account Balance": 350000.0,
+    "City": "Jaipur",
+    "revenue": 1700.0
+  },
+  {
+    "entity_id": "ENT0013",
+    "customer_name": "Vikram Singh",
+    "phone_number": 9876112233.0,
+    "customer_id": "C009",
+    "Account Balance": 290000.0,
+    "City": "Surat",
+    "revenue": 1250.0
+  },
+  {
+    "entity_id": "ENT0014",
+    "customer_name": "Ananya Das",
+    "phone_number": 9123451111.0,
+    "customer_id": "C010",
+    "Account Balance": 400000.0,
+    "City": "Kochi",
+    "revenue": 1350.0
+  }
+]

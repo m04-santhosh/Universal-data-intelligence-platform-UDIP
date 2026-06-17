@@ -1,0 +1,444 @@
+import re
+
+with open('templates/index.html', 'r', encoding='utf-8') as f:
+    content = f.read()
+
+# Extract script block
+script_match = re.search(r'<script>(.*?)</script>', content, re.DOTALL)
+script_content = script_match.group(1) if script_match else ''
+
+# Define the new HTML
+new_html = f'''{{% extends "base.html" %}}
+
+{{% block title %}}Upload - Universal Data Intelligence Platform{{% endblock %}}
+
+{{% block extra_css %}}
+<style>
+    .upload-zone {{
+        border: 2px dashed var(--border-color);
+        border-radius: var(--border-radius-lg);
+        padding: 4rem 2rem;
+        text-align: center;
+        background-color: var(--surface-color);
+        transition: all 0.3s ease;
+        cursor: pointer;
+        margin-bottom: 2rem;
+    }}
+    .upload-zone.dragover {{
+        border-color: var(--primary-color);
+        background-color: var(--primary-light);
+    }}
+    .upload-icon {{
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }}
+    .file-preview-container {{
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        text-align: left;
+    }}
+    .file-preview {{
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        background-color: #F9FAFB;
+        border: 1px solid var(--border-color);
+        border-radius: 0.375rem;
+    }}
+    .file-preview i {{
+        color: #10B981;
+        margin-right: 0.75rem;
+        font-size: 1.25rem;
+    }}
+    .chat-container {{
+        display: flex;
+        flex-direction: column;
+        height: 500px;
+        background-color: var(--surface-color);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius-lg);
+        overflow: hidden;
+    }}
+    .chat-messages {{
+        flex-grow: 1;
+        padding: 1.5rem;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        background-color: #F9FAFB;
+    }}
+    .message-bubble {{
+        max-width: 80%;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        line-height: 1.5;
+    }}
+    .message-user {{
+        align-self: flex-end;
+        background-color: var(--primary-color);
+        color: white;
+        border-bottom-right-radius: 0;
+    }}
+    .message-ai {{
+        align-self: flex-start;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        border-bottom-left-radius: 0;
+    }}
+    .chat-input-area {{
+        padding: 1rem;
+        background-color: white;
+        border-top: 1px solid var(--border-color);
+        display: flex;
+        gap: 0.5rem;
+    }}
+    .chat-input {{
+        flex-grow: 1;
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+        outline: none;
+    }}
+    .chat-input:focus {{
+        border-color: var(--primary-color);
+    }}
+    .chat-send {{
+        background-color: var(--primary-color);
+        color: white;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        cursor: pointer;
+    }}
+    .suggested-prompts {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }}
+    .prompt-pill {{
+        padding: 0.5rem 1rem;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        cursor: pointer;
+        color: var(--text-muted);
+        transition: all 0.2s;
+    }}
+    .prompt-pill:hover {{
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }}
+    .hidden {{ display: none !important; }}
+</style>
+{{% endblock %}}
+
+{{% block content %}}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Data Ingestion Engine</h1>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">Upload Excel files to automatically map schemas, resolve entities, and prepare data.</p>
+    </div>
+</div>
+
+<div class="saas-card" id="uploadSection" style="margin-bottom: 2rem;">
+    <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+        <h3>Drag & Drop your Excel files here</h3>
+        <p style="color: var(--text-muted); margin-top: 0.5rem;">or click to browse from your computer</p>
+        <input type="file" id="fileInput" multiple accept=".xlsx,.xls,.csv" class="hidden">
+        
+        <div id="filePreviewArea" class="file-preview-container hidden"></div>
+        <div id="validationMessage" style="color: var(--danger-color); margin-top: 1rem; font-weight: 500;" class="hidden"></div>
+    </div>
+    
+    <div style="display: flex; justify-content: flex-end;">
+        <button id="analyzeBtn" class="btn btn-primary" style="padding: 0.75rem 2rem;" disabled>
+            <i class="fas fa-magic"></i> Analyze Schemas
+        </button>
+    </div>
+    <div id="loader" style="display: none; text-align: center; padding: 1rem;">
+        <i class="fas fa-spinner fa-spin" style="font-size: 1.5rem; color: var(--primary-color);"></i>
+        <span style="margin-left: 0.5rem; font-weight: 500;">Processing...</span>
+    </div>
+    <div id="errorMsg" style="color: var(--danger-color); margin-top: 1rem; font-weight: 500; text-align: center; display: none;"></div>
+</div>
+
+<!-- Mappings Section (Simplified for brevity, similar structure to old but with SaaS classes) -->
+<div id="mappingSection" class="saas-card hidden" style="margin-bottom: 2rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+        <h3 style="margin: 0;">AI Schema Mapping</h3>
+        <div style="display: flex; gap: 1rem;">
+            <input type="text" id="projectName" placeholder="Project Name" class="chat-input" style="border-radius: 0.25rem;">
+            <select id="templateSelect" class="chat-input" style="border-radius: 0.25rem;"><option value="">-- Or Load Template --</option></select>
+        </div>
+    </div>
+    
+    <div id="mappingContainer"></div>
+    
+    <div style="display: flex; justify-content: space-between; margin-top: 1.5rem; align-items: center;">
+        <div>
+            <input type="checkbox" id="saveTemplate" style="margin-right: 0.5rem;">
+            <label for="saveTemplate" style="font-weight: 500;">Save as new template</label>
+            <input type="text" id="templateName" placeholder="Template Name" class="chat-input hidden" style="border-radius: 0.25rem; margin-left: 1rem;">
+        </div>
+        <button id="processBtn" class="btn btn-primary"><i class="fas fa-cogs"></i> Process Data</button>
+    </div>
+</div>
+
+<!-- Results Section -->
+<div id="resultsSection" class="hidden">
+    <div class="saas-card" style="margin-bottom: 2rem;">
+        <h3 style="margin-top: 0;">Processing Complete! <span style="color: #10B981;"><i class="fas fa-check-circle"></i></span></h3>
+        <div style="display: flex; gap: 2rem; margin-top: 1.5rem;">
+            <div><p style="color: var(--text-muted); margin: 0;">Records Processed</p><h2 id="statsTotal" style="margin: 0; color: var(--primary-color);">0</h2></div>
+            <div><p style="color: var(--text-muted); margin: 0;">Quality Score</p><h2 id="statsScore" style="margin: 0; color: #10B981;">0</h2></div>
+        </div>
+    </div>
+    
+    <!-- ChatGPT Style AI Interface -->
+    <div class="saas-card">
+        <h3 style="margin-top: 0; margin-bottom: 1.5rem;"><i class="fas fa-robot" style="color: var(--primary-color);"></i> Ask Your Data AI</h3>
+        
+        <div class="chat-container">
+            <div class="chat-messages" id="chatHistory">
+                <div class="message-bubble message-ai">
+                    Hello! I've analyzed your newly ingested data. Ask me anything about trends, anomalies, or summaries.
+                </div>
+            </div>
+            
+            <div style="padding: 1rem 1rem 0 1rem; background-color: #F9FAFB;">
+                <div class="suggested-prompts">
+                    <div class="prompt-pill" onclick="setPrompt(this.innerText)">Summarize the total revenue</div>
+                    <div class="prompt-pill" onclick="setPrompt(this.innerText)">Find any duplicate customer records</div>
+                    <div class="prompt-pill" onclick="setPrompt(this.innerText)">What are the key insights?</div>
+                </div>
+            </div>
+            
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" class="chat-input" placeholder="Message Ask Your Data AI...">
+                <button class="chat-send" onclick="sendQuery()"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+{{% endblock %}}
+
+{{% block extra_js %}}
+<script>
+    // Polyfill or adapt previous logic
+    let uploadedFiles = [];
+    let currentMappings = null;
+    let currentDownloadId = null;
+    let relationshipData = null;
+    let templatesData = [];
+
+    // Drag and Drop Logic
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const filePreviewArea = document.getElementById('filePreviewArea');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    
+    dropZone.addEventListener('dragover', (e) => {{
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+    }});
+    
+    dropZone.addEventListener('dragleave', () => {{
+        dropZone.classList.remove('dragover');
+    }});
+    
+    dropZone.addEventListener('drop', (e) => {{
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {{
+            fileInput.files = e.dataTransfer.files;
+            updateFilePreview();
+        }}
+    }});
+    
+    fileInput.addEventListener('change', updateFilePreview);
+    
+    function updateFilePreview() {{
+        filePreviewArea.innerHTML = '';
+        if (fileInput.files.length > 0) {{
+            filePreviewArea.classList.remove('hidden');
+            analyzeBtn.disabled = false;
+            Array.from(fileInput.files).forEach(file => {{
+                const div = document.createElement('div');
+                div.className = 'file-preview';
+                div.innerHTML = `<i class="fas fa-file-excel"></i> <div><strong>${{file.name}}</strong><br><small>${{(file.size/1024).toFixed(1)}} KB</small></div>`;
+                filePreviewArea.appendChild(div);
+            }});
+        }} else {{
+            filePreviewArea.classList.add('hidden');
+            analyzeBtn.disabled = true;
+        }}
+    }}
+
+    // ChatGPT Logic
+    function setPrompt(text) {{
+        document.getElementById('chatInput').value = text;
+    }}
+    
+    function appendChatMessage(role, content) {{
+        const chatHistory = document.getElementById('chatHistory');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message-bubble ${{role === 'user' ? 'message-user' : 'message-ai'}}`;
+        msgDiv.innerHTML = content.replace(/\\n/g, '<br>');
+        chatHistory.appendChild(msgDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }}
+    
+    document.getElementById('chatInput').addEventListener('keypress', (e) => {{
+        if(e.key === 'Enter') sendQuery();
+    }});
+    
+    async function sendQuery() {{
+        const input = document.getElementById('chatInput');
+        const q = input.value.trim();
+        if(!q) return;
+        
+        appendChatMessage('user', q);
+        input.value = '';
+        
+        appendChatMessage('ai', '<i class="fas fa-ellipsis-h fa-fade"></i> Thinking...');
+        const bubbles = document.querySelectorAll('.message-bubble');
+        const lastBubble = bubbles[bubbles.length-1];
+        
+        try {{
+            const res = await fetch('/api/query', {{
+                method: 'POST',
+                headers: {{ 'Content-Type': 'application/json' }},
+                body: JSON.stringify({{ query: q, project_id: currentDownloadId }})
+            }});
+            const data = await res.json();
+            lastBubble.innerHTML = data.response;
+        }} catch(e) {{
+            lastBubble.innerHTML = "Sorry, I encountered an error while processing your request.";
+        }}
+    }}
+
+    document.getElementById('saveTemplate').addEventListener('change', (e) => {{
+        document.getElementById('templateName').classList.toggle('hidden', !e.target.checked);
+    }});
+    
+    analyzeBtn.addEventListener('click', async () => {{
+        if(fileInput.files.length === 0) return;
+        
+        document.getElementById('loader').style.display = 'block';
+        analyzeBtn.disabled = true;
+        document.getElementById('errorMsg').style.display = 'none';
+        
+        const formData = new FormData();
+        Array.from(fileInput.files).forEach(f => formData.append('files', f));
+        
+        try {{
+            const res = await fetch('/api/analyze_files', {{ method: 'POST', body: formData }});
+            const data = await res.json();
+            
+            if(data.error) throw new Error(data.error);
+            
+            currentMappings = data.suggestions;
+            renderMappings(currentMappings);
+            document.getElementById('mappingSection').classList.remove('hidden');
+            
+            // Load templates
+            const tRes = await fetch('/api/v1/templates');
+            const tData = await tRes.json();
+            const sel = document.getElementById('templateSelect');
+            if(tData.templates) {{
+                tData.templates.forEach(t => {{
+                    sel.options.add(new Option(t.template_name, t.template_name));
+                }});
+                sel.addEventListener('change', (e) => {{
+                    const tt = tData.templates.find(x => x.template_name === e.target.value);
+                    if(tt) {{ currentMappings = tt.mapping; renderMappings(currentMappings); }}
+                }});
+            }}
+            
+        }} catch(e) {{
+            document.getElementById('errorMsg').innerText = e.message;
+            document.getElementById('errorMsg').style.display = 'block';
+        }} finally {{
+            document.getElementById('loader').style.display = 'none';
+            analyzeBtn.disabled = false;
+        }}
+    }});
+    
+    function renderMappings(mappings) {{
+        const container = document.getElementById('mappingContainer');
+        container.innerHTML = '';
+        
+        const table = document.createElement('table');
+        table.className = 'saas-table';
+        table.innerHTML = `<thead><tr><th>Original Field</th><th>Sample Data</th><th>Mapped To</th></tr></thead><tbody id="mapBody"></tbody>`;
+        container.appendChild(table);
+        
+        const tbody = document.getElementById('mapBody');
+        mappings.forEach((m, idx) => {{
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${{m.original_field}}</strong><br><small style="color:var(--text-muted)">Type: ${{m.inferred_type}}</small></td>
+                <td><small>${{m.sample_values.slice(0,3).join(', ')}}</small></td>
+                <td><input type="text" class="chat-input" style="border-radius:0.25rem; padding:0.5rem;" value="${{m.suggested_mapping}}" onchange="updateMapping(${{idx}}, this.value)"></td>
+            `;
+            tbody.appendChild(tr);
+        }});
+    }}
+    
+    window.updateMapping = function(idx, val) {{
+        currentMappings[idx].suggested_mapping = val;
+    }}
+    
+    document.getElementById('processBtn').addEventListener('click', async () => {{
+        const projName = document.getElementById('projectName').value || 'Untitled Project';
+        const templateName = document.getElementById('saveTemplate').checked ? document.getElementById('templateName').value : '';
+        
+        document.getElementById('processBtn').disabled = true;
+        document.getElementById('processBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+        
+        const formData = new FormData();
+        Array.from(fileInput.files).forEach(f => formData.append('files', f));
+        formData.append('mappings', JSON.stringify(currentMappings));
+        formData.append('project_name', projName);
+        if(templateName) formData.append('template_name', templateName);
+        
+        try {{
+            const res = await fetch('/api/convert_with_mapping', {{ method: 'POST', body: formData }});
+            const data = await res.json();
+            
+            if(data.error) throw new Error(data.error);
+            
+            currentDownloadId = data.project_id;
+            
+            document.getElementById('mappingSection').classList.add('hidden');
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('resultsSection').classList.remove('hidden');
+            
+            document.getElementById('statsTotal').innerText = data.insights.total_records.toLocaleString();
+            document.getElementById('statsScore').innerText = data.insights.quality_metrics.overall_quality_score;
+            
+        }} catch(e) {{
+            alert(e.message);
+        }} finally {{
+            document.getElementById('processBtn').disabled = false;
+            document.getElementById('processBtn').innerHTML = '<i class="fas fa-cogs"></i> Process Data';
+        }}
+    }});
+</script>
+{{% endblock %}}
+'''
+
+with open('templates/index.html', 'w', encoding='utf-8') as f:
+    f.write(new_html)

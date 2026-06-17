@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Universal Data Intelligence Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg-color: #F9FAFB;
+            --text-color: #111827;
+            --border-color: #E5E7EB;
+            --card-bg: #FFFFFF;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        header {
+            width: 100%;
+            background-color: var(--card-bg);
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            padding: 1.5rem 0;
+            text-align: center;
+        }
+
+        main {
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
+            flex-grow: 1;
+            box-sizing: border-box;
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .dashboard-header h2 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text-color);
+        }
+
+        .btn-new {
+            padding: 0.75rem 1.5rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: background-color 0.2s;
+        }
+
+        .btn-new:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .projects-table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: var(--card-bg);
+            border-radius: 0.5rem;
+            overflow: hidden;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .projects-table th {
+            background-color: #F3F4F6;
+            padding: 1rem 1.5rem;
+            text-align: left;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #4B5563;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .projects-table td {
+            padding: 1rem 1.5rem;
+            font-size: 0.875rem;
+            border-bottom: 1px solid var(--border-color);
+            color: #111827;
+        }
+
+        .projects-table tr:hover {
+            background-color: #F9FAFB;
+        }
+
+        .action-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid transparent;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-open {
+            background-color: #EFF6FF;
+            color: #2563EB;
+            border-color: #BFDBFE;
+        }
+
+        .btn-open:hover {
+            background-color: #DBEAFE;
+        }
+
+        .btn-delete {
+            background-color: #FEF2F2;
+            color: #DC2626;
+            border-color: #FECACA;
+            margin-left: 0.5rem;
+        }
+
+        .btn-delete:hover {
+            background-color: #FEE2E2;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            background-color: var(--card-bg);
+            border-radius: 0.5rem;
+            border: 2px dashed var(--border-color);
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            color: #374151;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            color: #6B7280;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 2rem; width: 100%; box-sizing: border-box;">
+            <h1 style="margin: 0; font-size: 1.5rem; font-weight: 700; color: var(--primary-color);">Universal Data Intelligence Platform</h1>
+            {% if user %}
+            <div style="display: flex; align-items: center; gap: 1.5rem; font-size: 0.875rem;">
+                <span style="font-weight: 500; color: #374151; margin-right: 1rem;">{{ user.name }}</span>
+                <a href="/" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Upload</a>
+                <a href="/dashboard" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Projects</a>
+                <a href="/history" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">History</a>
+                <a href="/templates" style="color: var(--primary-color); text-decoration: none; font-weight: 500;">Templates</a>
+                <a href="/logout" style="padding: 0.4rem 0.8rem; background-color: #EF4444; color: white; text-decoration: none; border-radius: 0.375rem; font-weight: 500;">Logout</a>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    <main>
+        <div class="dashboard-header">
+            <h2>My Projects</h2>
+            <a href="/" class="btn-new">New Project</a>
+        </div>
+
+        {% if projects %}
+        <table class="projects-table">
+            <thead>
+                <tr>
+                    <th>Project Name</th>
+                    <th>Date Created</th>
+                    <th>Files</th>
+                    <th>Records Processed</th>
+                    <th>Quality Score</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for project in projects %}
+                <tr id="project-{{ project.project_id }}">
+                    <td style="font-weight: 500;">{{ project.project_name }}</td>
+                    <td>{{ project.created_at[:16] }}</td>
+                    <td>{{ project.files_uploaded }}</td>
+                    <td>{{ project.records_processed }}</td>
+                    <td>
+                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 9999px; background-color: {% if project.quality_score >= 80 %}#10B981{% elif project.quality_score >= 50 %}#F59E0B{% else %}#EF4444{% endif %}; color: white; font-weight: 600; font-size: 0.875rem;">
+                            {{ project.quality_score }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="/project/{{ project.project_id }}" class="action-btn btn-open">Open</a>
+                        <button onclick="deleteProject('{{ project.project_id }}')" class="action-btn btn-delete">Delete</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">
+            <h3>No projects yet</h3>
+            <p>Upload some Excel files to get started with your first project.</p>
+            <a href="/" class="btn-new">Create New Project</a>
+        </div>
+        {% endif %}
+    </main>
+
+    <script>
+        async function deleteProject(projectId) {
+            if (!confirm("Are you sure you want to delete this project?")) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/projects/${projectId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    const row = document.getElementById(`project-${projectId}`);
+                    row.remove();
+                    
+                    // Check if table is empty now
+                    const tbody = document.querySelector('.projects-table tbody');
+                    if (tbody && tbody.children.length === 0) {
+                        location.reload(); // Reload to show empty state
+                    }
+                } else {
+                    alert(result.error || "Failed to delete project");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("An error occurred while deleting the project.");
+            }
+        }
+    </script>
+</body>
+</html>

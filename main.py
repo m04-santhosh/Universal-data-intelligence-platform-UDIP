@@ -130,19 +130,24 @@ def generate_pdf_report(user_name, project_name, data_len, trust_report, mapping
     buffer.close()
     return pdf_bytes
 
-def trigger_webhooks(user_id: int, trigger_type: str, payload: dict):
+def trigger_webhooks(user_id: str, trigger_type: str, payload: dict):
     def run_webhooks():
-        supabase = database.get_supabase_client()
-        if not supabase: return
-        response = supabase.table("automation_rules").select("webhook_url").eq("user_id", user_id).eq("trigger_type", trigger_type).execute()
-        rules = response.data or []
-        
-        for rule in rules:
-            try:
-                requests.post(rule["webhook_url"], json=payload, timeout=5)
-            except Exception as e:
-                logger.error(f"Webhook error to {rule['webhook_url']}: {e}")
+        try:
+            supabase = database.get_supabase_client()
+            if not supabase: return
+            response = supabase.table("automation_rules").select("webhook_url").eq("user_id", user_id).eq("trigger_type", trigger_type).execute()
+            rules = response.data or []
+            
+            for rule in rules:
+                try:
+                    import requests
+                    requests.post(rule["webhook_url"], json=payload, timeout=5)
+                except Exception as e:
+                    logger.error(f"Webhook error to {rule['webhook_url']}: {e}")
+        except Exception as e:
+            print(f"Webhook skipped: {e}")
                 
+    import threading
     threading.Thread(target=run_webhooks, daemon=True).start()
 
 templates = Jinja2Templates(directory="templates")

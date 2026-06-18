@@ -17,6 +17,12 @@ import requests
 import threading
 from fastapi.security import APIKeyHeader
 
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+import io
+
 import database
 import auth
 
@@ -33,6 +39,96 @@ def get_api_user(api_key: str = Depends(api_key_header)):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid API Key")
     return user
+
+def generate_pdf_report(user_name, project_name, data_len, trust_report, mappings_applied, recommendations):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter)
+    elements = []
+    
+    styles = getSampleStyleSheet()
+    title_style = styles['Heading1']
+    title_style.alignment = 1 # Center
+    
+    # UDIP Logo / Header
+    elements.append(Paragraph("<b>UDIP - Universal Data Intelligence Platform</b>", title_style))
+    elements.append(Spacer(1, 12))
+    
+    elements.append(Paragraph("<b>Processing Report</b>", styles['Heading2']))
+    elements.append(Spacer(1, 12))
+    
+    # Summary
+    summary_data = [
+        ["Project Name:", project_name],
+        ["Processing Date:", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+        ["User Name:", user_name],
+        ["Total Records:", str(data_len)],
+        ["Quality Score:", f"{trust_report.get('quality_score', 0)}/100"]
+    ]
+    t = Table(summary_data, colWidths=[150, 300])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.lightgrey),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    elements.append(t)
+    elements.append(Spacer(1, 20))
+    
+    # Mapping Summary
+    elements.append(Paragraph("<b>Mapping Summary</b>", styles['Heading2']))
+    if mappings_applied:
+        mapping_data = [["Original Column", "Mapped Column", "Match Type"]]
+        for m in mappings_applied:
+            mapping_data.append([m.get("original_column", ""), m.get("canonical_column", ""), m.get("match_type", "")])
+        
+        t_map = Table(mapping_data, colWidths=[150, 150, 150])
+        t_map.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(t_map)
+    else:
+        elements.append(Paragraph("No mappings applied.", styles['Normal']))
+    elements.append(Spacer(1, 20))
+    
+    # Data Quality Report
+    elements.append(Paragraph("<b>Data Quality Report</b>", styles['Heading2']))
+    quality_data = [
+        ["Missing Values:", str(trust_report.get('missing_values', 0))],
+        ["Duplicates Merged:", str(trust_report.get('duplicates_merged', 0))],
+        ["Conflicts Detected:", str(trust_report.get('conflicts_detected', 0))],
+    ]
+    t_qual = Table(quality_data, colWidths=[200, 250])
+    t_qual.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 4)
+    ]))
+    elements.append(t_qual)
+    elements.append(Spacer(1, 20))
+    
+    # AI Recommendations
+    elements.append(Paragraph("<b>AI Recommendations</b>", styles['Heading2']))
+    if recommendations:
+        for rec in recommendations:
+            elements.append(Paragraph(f"• {rec}", styles['Normal']))
+            elements.append(Spacer(1, 6))
+    else:
+        elements.append(Paragraph("No specific recommendations.", styles['Normal']))
+        
+    doc.build(elements)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
 
 def trigger_webhooks(user_id: int, trigger_type: str, payload: dict):
     def run_webhooks():
@@ -782,7 +878,35 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
             "sample_records": sample_records
         }
 
+        pdf_bytes = generate_pdf_report(user.get("name", "User"), project_name, len(data), trust_report, mappings_applied_report, recommendations)
+        
         supabase = database.get_supabase_client()
+        if supabase:
+            try:
+                json_path = f"{download_id}.json"
+                supabase.storage.from_("exports").upload(file=json_bytes, path=json_path, file_options={"content-type": "application/json"})
+                json_file_url = supabase.storage.from_("exports").get_public_url(json_path)
+
+                pdf_path = f"{download_id}.pdf"
+                supabase.storage.from_("exports").upload(file=pdf_bytes, path=pdf_path, file_options={"content-type": "application/pdf"})
+                pdf_file_url = supabase.storage.from_("exports").get_public_url(pdf_path)
+
+                supabase.table("processing_jobs").insert({
+                    "id": download_id,
+                    "user_id": user["id"],
+                    "total_records": len(data),
+                    "quality_score": final_score,
+                    "json_file_url": json_file_url,
+                    "pdf_file_url": pdf_file_url,
+                    "status": "completed"
+                }).execute()
+            except Exception as e:
+                logger.error(f"Supabase Storage/Jobs Error: {e}")
+
+        result_payload["json_download"] = f"/api/download/json/{download_id}"
+        result_payload["pdf_download"] = f"/api/download/pdf/{download_id}"
+        result_payload["job_id"] = download_id
+
         if supabase:
             try:
                 supabase.table("projects").insert({
@@ -977,7 +1101,35 @@ async def convert_excel_with_mapping(
             "sample_records": sample_records
         }
 
+        pdf_bytes = generate_pdf_report(user.get("name", "User"), project_name, len(data), trust_report, mappings_applied_report, recommendations)
+        
         supabase = database.get_supabase_client()
+        if supabase:
+            try:
+                json_path = f"{download_id}.json"
+                supabase.storage.from_("exports").upload(file=json_bytes, path=json_path, file_options={"content-type": "application/json"})
+                json_file_url = supabase.storage.from_("exports").get_public_url(json_path)
+
+                pdf_path = f"{download_id}.pdf"
+                supabase.storage.from_("exports").upload(file=pdf_bytes, path=pdf_path, file_options={"content-type": "application/pdf"})
+                pdf_file_url = supabase.storage.from_("exports").get_public_url(pdf_path)
+
+                supabase.table("processing_jobs").insert({
+                    "id": download_id,
+                    "user_id": user["id"],
+                    "total_records": len(data),
+                    "quality_score": final_score,
+                    "json_file_url": json_file_url,
+                    "pdf_file_url": pdf_file_url,
+                    "status": "completed"
+                }).execute()
+            except Exception as e:
+                logger.error(f"Supabase Storage/Jobs Error: {e}")
+
+        result_payload["json_download"] = f"/api/download/json/{download_id}"
+        result_payload["pdf_download"] = f"/api/download/pdf/{download_id}"
+        result_payload["job_id"] = download_id
+
         if supabase:
             try:
                 if template_name:
@@ -1247,6 +1399,58 @@ async def download_file(request: Request, download_id: str, format: str = "json"
                 headers={"Content-Disposition": f"attachment; filename=normalized_data.xlsx"}
             )
 
+@app.get("/api/download/json/{job_id}")
+async def download_json(request: Request, job_id: str):
+    user = auth.get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    supabase = database.get_supabase_client()
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+        
+    res = supabase.table("processing_jobs").select("json_file_url").eq("id", job_id).eq("user_id", user["id"]).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Job not found or unauthorized")
+        
+    json_path = f"{job_id}.json"
+    try:
+        file_bytes = supabase.storage.from_("exports").download(json_path)
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type="application/json",
+            headers={"Content-Disposition": f"attachment; filename=job_{job_id}.json"}
+        )
+    except Exception as e:
+        logger.error(f"Error downloading JSON from storage: {e}")
+        raise HTTPException(status_code=404, detail="File not found in storage")
+
+@app.get("/api/download/pdf/{job_id}")
+async def download_pdf(request: Request, job_id: str):
+    user = auth.get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    supabase = database.get_supabase_client()
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+        
+    res = supabase.table("processing_jobs").select("pdf_file_url").eq("id", job_id).eq("user_id", user["id"]).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Job not found or unauthorized")
+        
+    pdf_path = f"{job_id}.pdf"
+    try:
+        file_bytes = supabase.storage.from_("exports").download(pdf_path)
+        return StreamingResponse(
+            io.BytesIO(file_bytes),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename=report_{job_id}.pdf"}
+        )
+    except Exception as e:
+        logger.error(f"Error downloading PDF from storage: {e}")
+        raise HTTPException(status_code=404, detail="File not found in storage")
+
 # ==============================================================================
 # REST API (Protected by API Key)
 # ==============================================================================
@@ -1432,7 +1636,35 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
             "sample_records": sample_records
         }
 
+        pdf_bytes = generate_pdf_report(user.get("name", "User"), project_name, len(data), trust_report, mappings_applied_report, recommendations)
+        
         supabase = database.get_supabase_client()
+        if supabase:
+            try:
+                json_path = f"{download_id}.json"
+                supabase.storage.from_("exports").upload(file=json_bytes, path=json_path, file_options={"content-type": "application/json"})
+                json_file_url = supabase.storage.from_("exports").get_public_url(json_path)
+
+                pdf_path = f"{download_id}.pdf"
+                supabase.storage.from_("exports").upload(file=pdf_bytes, path=pdf_path, file_options={"content-type": "application/pdf"})
+                pdf_file_url = supabase.storage.from_("exports").get_public_url(pdf_path)
+
+                supabase.table("processing_jobs").insert({
+                    "id": download_id,
+                    "user_id": user["id"],
+                    "total_records": len(data),
+                    "quality_score": final_score,
+                    "json_file_url": json_file_url,
+                    "pdf_file_url": pdf_file_url,
+                    "status": "completed"
+                }).execute()
+            except Exception as e:
+                logger.error(f"Supabase Storage/Jobs Error: {e}")
+
+        result_payload["json_download"] = f"/api/download/json/{download_id}"
+        result_payload["pdf_download"] = f"/api/download/pdf/{download_id}"
+        result_payload["job_id"] = download_id
+
         if supabase:
             try:
                 if template_name:

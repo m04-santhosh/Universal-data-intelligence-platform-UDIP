@@ -37,9 +37,11 @@
                     </span>
                 </td>
                 <td>
-                    <a href="/project/{{ project.project_id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem;">Open</a>
-                    <button onclick="duplicateProject('{{ project.project_id }}')" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem;">Duplicate</button>
-                    <button onclick="deleteProject('{{ project.project_id }}')" class="btn btn-danger" style="padding: 0.25rem 0.75rem; margin-left: 0.5rem;">Delete</button>
+                    <a href="/api/download/json/{{ project.project_id }}" class="btn btn-primary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; display: inline-block;"><i class="fas fa-file-code"></i> JSON</a>
+                    <a href="/api/download/pdf/{{ project.project_id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;"><i class="fas fa-file-pdf"></i> PDF</a>
+                    <a href="/project/{{ project.project_id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Open</a>
+                    <button onclick="duplicateProject('{{ project.project_id }}')" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Duplicate</button>
+                    <button onclick="deleteProject('{{ project.project_id }}')" class="btn btn-danger" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Delete</button>
                 </td>
             </tr>
             {% endfor %}

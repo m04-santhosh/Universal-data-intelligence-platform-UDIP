@@ -194,6 +194,10 @@
             <div><p style="color: var(--text-muted); margin: 0;">Records Processed</p><h2 id="statsTotal" style="margin: 0; color: var(--primary-color);">0</h2></div>
             <div><p style="color: var(--text-muted); margin: 0;">Quality Score</p><h2 id="statsScore" style="margin: 0; color: #10B981;">0</h2></div>
         </div>
+        <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+            <a id="btnDownloadJson" href="#" class="btn btn-primary" style="display: none;"><i class="fas fa-file-code"></i> Download JSON</a>
+            <a id="btnDownloadPdf" href="#" class="btn btn-secondary" style="display: none;"><i class="fas fa-file-pdf"></i> Download PDF</a>
+        </div>
     </div>
     
     <!-- ChatGPT Style AI Interface -->
@@ -344,7 +348,8 @@
                 body: JSON.stringify({ query: q, project_id: currentDownloadId })
             });
             const data = await res.json();
-            lastBubble.innerHTML = data.response;
+            console.log("AI API Response:", data);
+            lastBubble.innerHTML = data?.answer || data?.message || "No response received";
         } catch(e) {
             lastBubble.innerHTML = "Sorry, I encountered an error while processing your request.";
         }
@@ -483,6 +488,21 @@
             
             document.getElementById('statsTotal').innerText = totalRecords.toLocaleString();
             document.getElementById('statsScore').innerText = score;
+            
+            if (data.json_download) {
+                const btnJson = document.getElementById('btnDownloadJson');
+                btnJson.href = data.json_download;
+                btnJson.style.display = 'inline-flex';
+                btnJson.style.alignItems = 'center';
+                btnJson.style.gap = '0.5rem';
+            }
+            if (data.pdf_download) {
+                const btnPdf = document.getElementById('btnDownloadPdf');
+                btnPdf.href = data.pdf_download;
+                btnPdf.style.display = 'inline-flex';
+                btnPdf.style.alignItems = 'center';
+                btnPdf.style.gap = '0.5rem';
+            }
             
         } catch(e) {
             alert(e.message);

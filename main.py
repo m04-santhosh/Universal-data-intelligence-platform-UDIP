@@ -306,9 +306,10 @@ async def history_page(request: Request):
     projects = []
     if supabase:
         try:
-            response = supabase.table("project_history").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            response = supabase.table("projects").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
             projects = response.data
-        except Exception:
+        except Exception as e:
+            print(f"Supabase Projects Query Error: {e}")
             projects = []
             
     print("History records:", projects)
@@ -914,28 +915,20 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
 
         if supabase:
             try:
-                supabase.table("projects").insert({
+                print("PROJECT SAVE START")
+                projectData = {
                     "project_id": download_id,
                     "user_id": user["id"],
                     "project_name": project_name,
-                    "files_uploaded": len(files),
-                    "records_processed": len(data),
+                    "total_records": len(data),
                     "quality_score": final_score,
-                    "processing_time": processing_time,
-                    "project_data": result_payload
-                }).execute()
-                
-                supabase.table("project_history").insert({
-                    "project_id": download_id,
-                    "user_id": user["id"],
-                    "project_name": project_name,
-                    "files_uploaded": len(files),
-                    "records_processed": len(data),
-                    "quality_score": final_score,
-                    "processing_time": processing_time,
-                    "project_data": result_payload
-                }).execute()
+                    "created_at": datetime.now().isoformat()
+                }
+                print("PROJECT DATA", projectData)
+                supabase.table("projects").insert(projectData).execute()
+                print("PROJECT SAVE SUCCESS")
             except Exception as e:
+                print("PROJECT SAVE FAILED", str(e))
                 logger.error(f"Supabase DB Error in /api/convert: {e}")
         
         # Webhook triggers
@@ -1149,28 +1142,20 @@ async def convert_excel_with_mapping(
                     except Exception as e:
                         logger.error(f"Failed to insert template: {e}")
                     
-                supabase.table("projects").insert({
+                print("PROJECT SAVE START")
+                projectData = {
                     "project_id": download_id,
                     "user_id": user["id"],
                     "project_name": project_name,
-                    "files_uploaded": len(files),
-                    "records_processed": len(data),
+                    "total_records": len(data),
                     "quality_score": final_score,
-                    "processing_time": processing_time,
-                    "project_data": result_payload
-                }).execute()
-                
-                supabase.table("project_history").insert({
-                    "project_id": download_id,
-                    "user_id": user["id"],
-                    "project_name": project_name,
-                    "files_uploaded": len(files),
-                    "records_processed": len(data),
-                    "quality_score": final_score,
-                    "processing_time": processing_time,
-                    "project_data": result_payload
-                }).execute()
+                    "created_at": datetime.now().isoformat()
+                }
+                print("PROJECT DATA", projectData)
+                supabase.table("projects").insert(projectData).execute()
+                print("PROJECT SAVE SUCCESS")
             except Exception as e:
+                print("PROJECT SAVE FAILED", str(e))
                 logger.error(f"Supabase DB Error in /api/convert_with_mapping: {e}")
         
         # Webhook triggers
@@ -1712,28 +1697,20 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
                     except Exception as e:
                         pass
                     
-                supabase.table("projects").insert({
+                print("PROJECT SAVE START")
+                projectData = {
                     "project_id": download_id,
                     "user_id": user["id"],
                     "project_name": project_name,
-                    "files_uploaded": len(files),
-                    "records_processed": len(data),
+                    "total_records": len(data),
                     "quality_score": final_score,
-                    "processing_time": processing_time,
-                    "project_data": result_payload
-                }).execute()
-                
-                supabase.table("project_history").insert({
-                    "project_id": download_id,
-                    "user_id": user["id"],
-                    "project_name": project_name,
-                    "files_uploaded": len(files),
-                    "records_processed": len(data),
-                    "quality_score": final_score,
-                    "processing_time": processing_time,
-                    "project_data": result_payload
-                }).execute()
+                    "created_at": datetime.now().isoformat()
+                }
+                print("PROJECT DATA", projectData)
+                supabase.table("projects").insert(projectData).execute()
+                print("PROJECT SAVE SUCCESS")
             except Exception as e:
+                print("PROJECT SAVE FAILED", str(e))
                 logger.error(f"Supabase DB Error in /api/v1/process: {e}")
         
         # Webhook triggers

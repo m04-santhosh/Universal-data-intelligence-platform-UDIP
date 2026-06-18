@@ -280,12 +280,12 @@ async def open_project(request: Request, project_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
         
-    response = supabase.table("projects").select("project_data").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").select("processing_results").eq("project_id", project_id).eq("user_id", user["id"]).execute()
     
-    if not response.data or not response.data[0].get("project_data"):
+    if not response.data or not response.data[0].get("processing_results"):
         raise HTTPException(status_code=404, detail="Project not found")
         
-    project_data = response.data[0]["project_data"]
+    project_data = response.data[0]["processing_results"]
     if isinstance(project_data, dict):
         project_data = json.dumps(project_data)
         
@@ -326,7 +326,7 @@ async def duplicate_project(request: Request, project_id: str):
     if not supabase:
         return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
     
-    response = supabase.table("project_history").select("*").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").select("*").eq("project_id", project_id).eq("user_id", user["id"]).execute()
     if not response.data:
         return JSONResponse(status_code=404, content={"success": False, "error": "Project not found"})
         
@@ -334,15 +334,13 @@ async def duplicate_project(request: Request, project_id: str):
     new_id = str(uuid.uuid4())
     new_name = project["project_name"] + " (Copy)"
     
-    supabase.table("project_history").insert({
+    supabase.table("projects").insert({
         "project_id": new_id,
         "user_id": user["id"],
         "project_name": new_name,
-        "files_uploaded": project["files_uploaded"],
-        "records_processed": project["records_processed"],
-        "quality_score": project["quality_score"],
-        "processing_time": project["processing_time"],
-        "project_data": project["project_data"]
+        "total_records": project.get("total_records", 0),
+        "quality_score": project.get("quality_score", 0),
+        "processing_results": project.get("processing_results", {})
     }).execute()
     
     return {"success": True, "new_project_id": new_id}
@@ -924,11 +922,12 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
                     "quality_score": final_score,
                     "created_at": datetime.now().isoformat()
                 }
-                print("PROJECT DATA", projectData)
+                print(projectData)
                 supabase.table("projects").insert(projectData).execute()
                 print("PROJECT SAVE SUCCESS")
             except Exception as e:
-                print("PROJECT SAVE FAILED", str(e))
+                error = str(e)
+                print("PROJECT SAVE FAILED", error)
                 logger.error(f"Supabase DB Error in /api/convert: {e}")
         
         # Webhook triggers
@@ -1155,7 +1154,8 @@ async def convert_excel_with_mapping(
                 supabase.table("projects").insert(projectData).execute()
                 print("PROJECT SAVE SUCCESS")
             except Exception as e:
-                print("PROJECT SAVE FAILED", str(e))
+                error = str(e)
+                print("PROJECT SAVE FAILED", error)
                 logger.error(f"Supabase DB Error in /api/convert_with_mapping: {e}")
         
         # Webhook triggers
@@ -1710,7 +1710,8 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
                 supabase.table("projects").insert(projectData).execute()
                 print("PROJECT SAVE SUCCESS")
             except Exception as e:
-                print("PROJECT SAVE FAILED", str(e))
+                error = str(e)
+                print("PROJECT SAVE FAILED", error)
                 logger.error(f"Supabase DB Error in /api/v1/process: {e}")
         
         # Webhook triggers
@@ -1751,7 +1752,7 @@ async def api_v1_projects(user: dict = Depends(get_api_user)):
     supabase = database.get_supabase_client()
     projects = []
     if supabase:
-        response = supabase.table("projects").select("project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        response = supabase.table("projects").select("project_id, project_name, created_at, total_records, quality_score").eq("user_id", user["id"]).order("created_at", desc=True).execute()
         projects = response.data
     return {"projects": projects}
 
@@ -1766,8 +1767,8 @@ async def api_v1_project_detail(project_id: str, user: dict = Depends(get_api_us
         raise HTTPException(status_code=404, detail="Project not found")
     
     proj_dict = response.data[0]
-    if isinstance(proj_dict.get("project_data"), str):
-        proj_dict["project_data"] = json.loads(proj_dict["project_data"])
+    if isinstance(proj_dict.get("processing_results"), str):
+        proj_dict["processing_results"] = json.loads(proj_dict["processing_results"])
     return proj_dict
 
 @app.get("/api/v1/templates")
@@ -1794,7 +1795,7 @@ async def api_v1_history(user: dict = Depends(get_api_user)):
     projects = []
     if supabase:
         try:
-            response = supabase.table("project_history").select("project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            response = supabase.table("projects").select("project_id, project_name, created_at, total_records, quality_score").eq("user_id", user["id"]).order("created_at", desc=True).execute()
             projects = response.data
         except Exception:
             projects = []

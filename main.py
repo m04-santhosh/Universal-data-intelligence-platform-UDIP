@@ -920,6 +920,7 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
                     "project_name": project_name,
                     "total_records": len(data),
                     "quality_score": final_score,
+                    "processing_results": result_payload,
                     "created_at": datetime.now().isoformat()
                 }
                 print(projectData)
@@ -1148,9 +1149,10 @@ async def convert_excel_with_mapping(
                     "project_name": project_name,
                     "total_records": len(data),
                     "quality_score": final_score,
+                    "processing_results": result_payload,
                     "created_at": datetime.now().isoformat()
                 }
-                print("PROJECT DATA", projectData)
+                print(projectData)
                 supabase.table("projects").insert(projectData).execute()
                 print("PROJECT SAVE SUCCESS")
             except Exception as e:
@@ -1704,9 +1706,10 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
                     "project_name": project_name,
                     "total_records": len(data),
                     "quality_score": final_score,
+                    "processing_results": result_payload,
                     "created_at": datetime.now().isoformat()
                 }
-                print("PROJECT DATA", projectData)
+                print(projectData)
                 supabase.table("projects").insert(projectData).execute()
                 print("PROJECT SAVE SUCCESS")
             except Exception as e:

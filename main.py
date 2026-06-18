@@ -263,7 +263,7 @@ async def delete_project(request: Request, project_id: str):
     if not supabase:
         return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
         
-    response = supabase.table("projects").delete().eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").delete().eq("id", project_id).eq("user_id", user["id"]).execute()
     
     if response.data:
         return {"success": True}
@@ -280,7 +280,7 @@ async def open_project(request: Request, project_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
         
-    response = supabase.table("projects").select("processing_results").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").select("processing_results").eq("id", project_id).eq("user_id", user["id"]).execute()
     
     if not response.data or not response.data[0].get("processing_results"):
         raise HTTPException(status_code=404, detail="Project not found")
@@ -326,7 +326,7 @@ async def duplicate_project(request: Request, project_id: str):
     if not supabase:
         return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
     
-    response = supabase.table("projects").select("*").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").select("*").eq("id", project_id).eq("user_id", user["id"]).execute()
     if not response.data:
         return JSONResponse(status_code=404, content={"success": False, "error": "Project not found"})
         
@@ -1405,7 +1405,9 @@ async def download_json(request: Request, job_id: str):
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            res = supabase.table("projects").select("project_id").eq("project_id", job_id).eq("user_id", user["id"]).execute()
+            print(f"INCOMING ID: {job_id}")
+            print("QUERY COLUMN USED: id")
+            res = supabase.table("projects").select("project_id").eq("id", job_id).eq("user_id", user["id"]).execute()
             print("QUERY RESULT:", res.data)
         except Exception as e:
             print("ERROR:", str(e))
@@ -1414,14 +1416,15 @@ async def download_json(request: Request, job_id: str):
         if not res.data:
             return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
             
-        json_path = f"{job_id}.json"
+        actual_project_id = res.data[0]["project_id"]
+        json_path = f"{actual_project_id}.json"
         
         try:
             file_bytes = supabase.storage.from_("exports").download(json_path)
             return StreamingResponse(
                 io.BytesIO(file_bytes),
                 media_type="application/json",
-                headers={"Content-Disposition": f"attachment; filename=job_{job_id}.json"}
+                headers={"Content-Disposition": f"attachment; filename=job_{actual_project_id}.json"}
             )
         except Exception as e:
             print("ERROR:", str(e))
@@ -1445,7 +1448,9 @@ async def download_pdf(request: Request, job_id: str):
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            res = supabase.table("projects").select("project_id").eq("project_id", job_id).eq("user_id", user["id"]).execute()
+            print(f"INCOMING ID: {job_id}")
+            print("QUERY COLUMN USED: id")
+            res = supabase.table("projects").select("project_id").eq("id", job_id).eq("user_id", user["id"]).execute()
             print("QUERY RESULT:", res.data)
         except Exception as e:
             print("ERROR:", str(e))
@@ -1454,14 +1459,15 @@ async def download_pdf(request: Request, job_id: str):
         if not res.data:
             return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
             
-        pdf_path = f"{job_id}.pdf"
+        actual_project_id = res.data[0]["project_id"]
+        pdf_path = f"{actual_project_id}.pdf"
         
         try:
             file_bytes = supabase.storage.from_("exports").download(pdf_path)
             return StreamingResponse(
                 io.BytesIO(file_bytes),
                 media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=report_{job_id}.pdf"}
+                headers={"Content-Disposition": f"attachment; filename=report_{actual_project_id}.pdf"}
             )
         except Exception as e:
             print("ERROR:", str(e))
@@ -1755,7 +1761,7 @@ async def api_v1_projects(user: dict = Depends(get_api_user)):
     supabase = database.get_supabase_client()
     projects = []
     if supabase:
-        response = supabase.table("projects").select("project_id, project_name, created_at, total_records, quality_score").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        response = supabase.table("projects").select("id, project_id, project_name, created_at, total_records, quality_score").eq("user_id", user["id"]).order("created_at", desc=True).execute()
         projects = response.data
     return {"projects": projects}
 
@@ -1764,7 +1770,7 @@ async def api_v1_project_detail(project_id: str, user: dict = Depends(get_api_us
     supabase = database.get_supabase_client()
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
-    response = supabase.table("projects").select("*").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").select("*").eq("id", project_id).eq("user_id", user["id"]).execute()
     
     if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -1798,7 +1804,7 @@ async def api_v1_history(user: dict = Depends(get_api_user)):
     projects = []
     if supabase:
         try:
-            response = supabase.table("projects").select("project_id, project_name, created_at, total_records, quality_score").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            response = supabase.table("projects").select("id, project_id, project_name, created_at, total_records, quality_score").eq("user_id", user["id"]).order("created_at", desc=True).execute()
             projects = response.data
         except Exception:
             projects = []

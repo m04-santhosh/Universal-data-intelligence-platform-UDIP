@@ -22,7 +22,7 @@
         </thead>
         <tbody>
             {% for project in projects %}
-            <tr id="project-{{ project.project_id }}">
+            <tr id="project-{{ project.id }}">
                 <td style="font-weight: 500;">
                     <i class="fas fa-file-excel" style="color: #10B981; margin-right: 0.5rem;"></i>
                     {{ project.project_name }}
@@ -35,11 +35,11 @@
                     </span>
                 </td>
                 <td>
-                    <a href="/api/download/json/{{ project.project_id }}" class="btn btn-primary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; display: inline-block;"><i class="fas fa-file-code"></i> JSON</a>
-                    <a href="/api/download/pdf/{{ project.project_id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;"><i class="fas fa-file-pdf"></i> PDF</a>
-                    <a href="/project/{{ project.project_id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Open</a>
-                    <button onclick="duplicateProject('{{ project.project_id }}')" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Duplicate</button>
-                    <button onclick="deleteProject('{{ project.project_id }}')" class="btn btn-danger" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Delete</button>
+                    <a href="/api/download/json/{{ project.id }}" class="btn btn-primary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; display: inline-block;"><i class="fas fa-file-code"></i> JSON</a>
+                    <a href="/api/download/pdf/{{ project.id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;"><i class="fas fa-file-pdf"></i> PDF</a>
+                    <a href="/project/{{ project.id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Open</a>
+                    <button onclick="duplicateProject('{{ project.id }}')" class="btn btn-secondary" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Duplicate</button>
+                    <button onclick="deleteProject('{{ project.id }}')" class="btn btn-danger" style="padding: 0.25rem 0.75rem; margin-bottom: 0.25rem; margin-left: 0.25rem; display: inline-block;">Delete</button>
                 </td>
             </tr>
             {% endfor %}

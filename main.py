@@ -36,11 +36,10 @@ def get_api_user(api_key: str = Depends(api_key_header)):
 
 def trigger_webhooks(user_id: int, trigger_type: str, payload: dict):
     def run_webhooks():
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT webhook_url FROM automation_rules WHERE user_id = ? AND trigger_type = ?", (user_id, trigger_type))
-        rules = cursor.fetchall()
-        conn.close()
+        supabase = database.get_supabase_client()
+        if not supabase: return
+        response = supabase.table("automation_rules").select("webhook_url").eq("user_id", user_id).eq("trigger_type", trigger_type).execute()
+        rules = response.data or []
         
         for rule in rules:
             try:
@@ -71,19 +70,18 @@ async def login_page(request: Request):
 
 @app.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...)):
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, password_hash FROM users WHERE email = ?", (email,))
-    user = cursor.fetchone()
-    conn.close()
-
-    if not user or not auth.verify_password(password, user["password_hash"]):
+    supabase = database.get_supabase_client()
+    try:
+        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if response.session:
+            access_token = response.session.access_token
+            res = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+            res.set_cookie(key="session", value=access_token, httponly=True, max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
+            return res
+        else:
+            return templates.TemplateResponse(request=request, name="login.html", context={"error": "Invalid email or password"})
+    except Exception as e:
         return templates.TemplateResponse(request=request, name="login.html", context={"error": "Invalid email or password"})
-    
-    access_token = auth.create_access_token(data={"sub": str(user["id"])})
-    response = RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
-    response.set_cookie(key="session", value=access_token, httponly=True, max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60)
-    return response
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
@@ -103,19 +101,18 @@ async def register(request: Request, name: str = Form(...), email: str = Form(..
     if password != confirm_password:
          return templates.TemplateResponse(request=request, name="register.html", context={"error": "Passwords do not match", "name": name, "email": email})
     
-    hashed_password = auth.get_password_hash(password)
-    
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
+    supabase = database.get_supabase_client()
     try:
-        cursor.execute("INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)", (name, email, hashed_password))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        conn.close()
-        return templates.TemplateResponse(request=request, name="register.html", context={"error": "Email already registered", "name": name, "email": email})
-    
-    conn.close()
-    return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        response = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"name": name}}})
+        if response.user:
+            return RedirectResponse(url="/login?registered=true", status_code=status.HTTP_302_FOUND)
+        else:
+            return templates.TemplateResponse(request=request, name="register.html", context={"error": "Registration failed", "name": name, "email": email})
+    except Exception as e:
+        # Check if user already exists
+        if "already registered" in str(e).lower() or "User already exists" in str(e):
+             return templates.TemplateResponse(request=request, name="register.html", context={"error": "Email already registered", "name": name, "email": email})
+        return templates.TemplateResponse(request=request, name="register.html", context={"error": str(e), "name": name, "email": email})
 
 @app.get("/logout")
 async def logout():
@@ -129,11 +126,11 @@ async def dashboard_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM projects WHERE user_id = ? ORDER BY created_at DESC", (user["id"],))
-    projects = cursor.fetchall()
-    conn.close()
+    supabase = database.get_supabase_client()
+    projects = []
+    if supabase:
+        response = supabase.table("projects").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        projects = response.data
     
     return templates.TemplateResponse(request=request, name="dashboard.html", context={"user": user, "projects": projects})
 
@@ -143,14 +140,13 @@ async def delete_project(request: Request, project_id: str):
     if not user:
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM projects WHERE project_id = ? AND user_id = ?", (project_id, user["id"]))
-    conn.commit()
-    deleted = cursor.rowcount > 0
-    conn.close()
+    supabase = database.get_supabase_client()
+    if not supabase:
+        return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
+        
+    response = supabase.table("projects").delete().eq("project_id", project_id).eq("user_id", user["id"]).execute()
     
-    if deleted:
+    if response.data:
         return {"success": True}
     else:
         return JSONResponse(status_code=404, content={"success": False, "error": "Project not found"})
@@ -161,19 +157,23 @@ async def open_project(request: Request, project_id: str):
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT project_data FROM projects WHERE project_id = ? AND user_id = ?", (project_id, user["id"]))
-    project = cursor.fetchone()
-    conn.close()
+    supabase = database.get_supabase_client()
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+        
+    response = supabase.table("projects").select("project_data").eq("project_id", project_id).eq("user_id", user["id"]).execute()
     
-    if not project or not project["project_data"]:
+    if not response.data or not response.data[0].get("project_data"):
         raise HTTPException(status_code=404, detail="Project not found")
+        
+    project_data = response.data[0]["project_data"]
+    if isinstance(project_data, dict):
+        project_data = json.dumps(project_data)
         
     # We pass the raw JSON string and parse it in the template
     return templates.TemplateResponse(request=request, name="index.html", context={
         "user": user, 
-        "initial_project_data": project["project_data"]
+        "initial_project_data": project_data
     })
 
 @app.get("/history", response_class=HTMLResponse)
@@ -182,11 +182,11 @@ async def history_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM project_history WHERE user_id = ? ORDER BY created_at DESC", (user["id"],))
-    projects = cursor.fetchall()
-    conn.close()
+    supabase = database.get_supabase_client()
+    projects = []
+    if supabase:
+        response = supabase.table("project_history").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        projects = response.data
     
     return templates.TemplateResponse(request=request, name="history.html", context={"user": user, "projects": projects})
 
@@ -197,24 +197,28 @@ async def duplicate_project(request: Request, project_id: str):
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
     import uuid
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
+    supabase = database.get_supabase_client()
+    if not supabase:
+        return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
     
-    cursor.execute("SELECT * FROM project_history WHERE project_id = ? AND user_id = ?", (project_id, user["id"]))
-    project = cursor.fetchone()
-    if not project:
-        conn.close()
+    response = supabase.table("project_history").select("*").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    if not response.data:
         return JSONResponse(status_code=404, content={"success": False, "error": "Project not found"})
         
+    project = response.data[0]
     new_id = str(uuid.uuid4())
     new_name = project["project_name"] + " (Copy)"
     
-    cursor.execute(
-        "INSERT INTO project_history (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (new_id, user["id"], new_name, project["files_uploaded"], project["records_processed"], project["quality_score"], project["processing_time"], project["project_data"])
-    )
-    conn.commit()
-    conn.close()
+    supabase.table("project_history").insert({
+        "project_id": new_id,
+        "user_id": user["id"],
+        "project_name": new_name,
+        "files_uploaded": project["files_uploaded"],
+        "records_processed": project["records_processed"],
+        "quality_score": project["quality_score"],
+        "processing_time": project["processing_time"],
+        "project_data": project["project_data"]
+    }).execute()
     
     return {"success": True, "new_project_id": new_id}
 
@@ -224,19 +228,19 @@ async def templates_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM mapping_templates WHERE user_id = ? ORDER BY created_at DESC", (user["id"],))
-    user_templates = cursor.fetchall()
+    supabase = database.get_supabase_client()
+    user_templates = []
+    if supabase:
+        response = supabase.table("mapping_templates").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        user_templates = response.data
     
     templates_with_counts = []
     for t in user_templates:
         t_dict = dict(t)
-        t_dict["mappings_count"] = len(json.loads(t["mapping_json"]).keys())
+        mapping_data = t["mapping_json"] if isinstance(t["mapping_json"], dict) else json.loads(t["mapping_json"])
+        t_dict["mappings_count"] = len(mapping_data.keys())
         templates_with_counts.append(t_dict)
         
-    conn.close()
-    
     return templates.TemplateResponse(request=request, name="templates.html", context={"user": user, "mapping_templates": templates_with_counts})
 
 @app.delete("/api/templates/{template_id}")
@@ -245,14 +249,13 @@ async def delete_template(request: Request, template_id: str):
     if not user:
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM mapping_templates WHERE template_id = ? AND user_id = ?", (template_id, user["id"]))
-    conn.commit()
-    deleted = cursor.rowcount > 0
-    conn.close()
+    supabase = database.get_supabase_client()
+    if not supabase:
+        return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
+        
+    response = supabase.table("mapping_templates").delete().eq("template_id", template_id).eq("user_id", user["id"]).execute()
     
-    if deleted:
+    if response.data:
         return {"success": True}
     else:
         return JSONResponse(status_code=404, content={"success": False, "error": "Template not found"})
@@ -547,11 +550,11 @@ async def analyze_files(request: Request, files: list[UploadFile] = File(...)):
             }
             
         # Template Matching
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT template_id, template_name, mapping_json FROM mapping_templates WHERE user_id = ?", (user["id"],))
-        templates = cursor.fetchall()
-        conn.close()
+        supabase = database.get_supabase_client()
+        templates = []
+        if supabase:
+            res = supabase.table("mapping_templates").select("template_id, template_name, mapping_json").eq("user_id", user["id"]).execute()
+            templates = res.data
         
         best_template = None
         best_score = 0
@@ -747,21 +750,32 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
             "sample_records": sample_records
         }
 
-        try:
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO projects (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-            )
-            cursor.execute(
-                "INSERT INTO project_history (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-            )
-            conn.commit()
-            conn.close()
-        except sqlite3.OperationalError as e:
-            logger.error(f"Vercel DB Error in /api/convert: {e} - Skipping INSERT INTO projects & project_history")
+        supabase = database.get_supabase_client()
+        if supabase:
+            try:
+                supabase.table("projects").insert({
+                    "project_id": download_id,
+                    "user_id": user["id"],
+                    "project_name": project_name,
+                    "files_uploaded": len(files),
+                    "records_processed": len(data),
+                    "quality_score": final_score,
+                    "processing_time": processing_time,
+                    "project_data": result_payload
+                }).execute()
+                
+                supabase.table("project_history").insert({
+                    "project_id": download_id,
+                    "user_id": user["id"],
+                    "project_name": project_name,
+                    "files_uploaded": len(files),
+                    "records_processed": len(data),
+                    "quality_score": final_score,
+                    "processing_time": processing_time,
+                    "project_data": result_payload
+                }).execute()
+            except Exception as e:
+                logger.error(f"Supabase DB Error in /api/convert: {e}")
         
         # Webhook triggers
         payload = {
@@ -928,36 +942,41 @@ async def convert_excel_with_mapping(
             "sample_records": sample_records
         }
 
-        print("Reached convert_with_mapping")
-        print("Before DB write")
-        
-        # --- DISABLED FOR VERCEL SERVERLESS ---
-        # try:
-        #     conn = database.get_db_connection()
-        #     cursor = conn.cursor()
-        #     
-        #     if template_name:
-        #         template_id = str(uuid.uuid4())
-        #         cursor.execute(
-        #             "INSERT INTO mapping_templates (template_id, user_id, template_name, mapping_json) VALUES (?, ?, ?, ?)",
-        #             (template_id, user["id"], template_name, mappings)
-        #         )
-        #         
-        #     cursor.execute(
-        #         "INSERT INTO projects (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        #         (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-        #     )
-        #     cursor.execute(
-        #         "INSERT INTO project_history (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        #         (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-        #     )
-        #     conn.commit()
-        #     conn.close()
-        # except sqlite3.OperationalError as e:
-        #     logger.error(f"Vercel DB Error in /api/convert_with_mapping: {e} - Skipping INSERT INTO projects & mapping_templates")
-        # -------------------------------------
-        
-        print("After DB write")
+        supabase = database.get_supabase_client()
+        if supabase:
+            try:
+                if template_name:
+                    template_id = str(uuid.uuid4())
+                    supabase.table("mapping_templates").insert({
+                        "template_id": template_id,
+                        "user_id": user["id"],
+                        "template_name": template_name,
+                        "mapping_json": json.loads(mappings) if isinstance(mappings, str) else mappings
+                    }).execute()
+                    
+                supabase.table("projects").insert({
+                    "project_id": download_id,
+                    "user_id": user["id"],
+                    "project_name": project_name,
+                    "files_uploaded": len(files),
+                    "records_processed": len(data),
+                    "quality_score": final_score,
+                    "processing_time": processing_time,
+                    "project_data": result_payload
+                }).execute()
+                
+                supabase.table("project_history").insert({
+                    "project_id": download_id,
+                    "user_id": user["id"],
+                    "project_name": project_name,
+                    "files_uploaded": len(files),
+                    "records_processed": len(data),
+                    "quality_score": final_score,
+                    "processing_time": processing_time,
+                    "project_data": result_payload
+                }).execute()
+            except Exception as e:
+                logger.error(f"Supabase DB Error in /api/convert_with_mapping: {e}")
         
         # Webhook triggers
         payload = {
@@ -1214,11 +1233,11 @@ async def api_v1_upload(files: list[UploadFile] = File(...), user: dict = Depend
                 "match_type": match_type
             }
             
-        conn = database.get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT template_id, template_name, mapping_json FROM mapping_templates WHERE user_id = ?", (user["id"],))
-        templates = cursor.fetchall()
-        conn.close()
+        supabase = database.get_supabase_client()
+        templates = []
+        if supabase:
+            res = supabase.table("mapping_templates").select("template_id, template_name, mapping_json").eq("user_id", user["id"]).execute()
+            templates = res.data
         
         best_template = None
         best_score = 0
@@ -1366,29 +1385,41 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
             "sample_records": sample_records
         }
 
-        try:
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            
-            if template_name:
-                template_id = str(uuid.uuid4())
-                cursor.execute(
-                    "INSERT INTO mapping_templates (template_id, user_id, template_name, mapping_json) VALUES (?, ?, ?, ?)",
-                    (template_id, user["id"], template_name, mappings)
-                )
+        supabase = database.get_supabase_client()
+        if supabase:
+            try:
+                if template_name:
+                    template_id = str(uuid.uuid4())
+                    supabase.table("mapping_templates").insert({
+                        "template_id": template_id,
+                        "user_id": user["id"],
+                        "template_name": template_name,
+                        "mapping_json": json.loads(mappings) if isinstance(mappings, str) else mappings
+                    }).execute()
+                    
+                supabase.table("projects").insert({
+                    "project_id": download_id,
+                    "user_id": user["id"],
+                    "project_name": project_name,
+                    "files_uploaded": len(files),
+                    "records_processed": len(data),
+                    "quality_score": final_score,
+                    "processing_time": processing_time,
+                    "project_data": result_payload
+                }).execute()
                 
-            cursor.execute(
-                "INSERT INTO projects (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-            )
-            cursor.execute(
-                "INSERT INTO project_history (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-            )
-            conn.commit()
-            conn.close()
-        except sqlite3.OperationalError as e:
-            logger.error(f"Vercel DB Error in /api/v1/process: {e} - Skipping INSERT INTO projects & mapping_templates")
+                supabase.table("project_history").insert({
+                    "project_id": download_id,
+                    "user_id": user["id"],
+                    "project_name": project_name,
+                    "files_uploaded": len(files),
+                    "records_processed": len(data),
+                    "quality_score": final_score,
+                    "processing_time": processing_time,
+                    "project_data": result_payload
+                }).execute()
+            except Exception as e:
+                logger.error(f"Supabase DB Error in /api/v1/process: {e}")
         
         # Webhook triggers
         payload = {
@@ -1425,50 +1456,51 @@ async def api_v1_query(request: QueryRequest, user: dict = Depends(get_api_user)
 
 @app.get("/api/v1/projects")
 async def api_v1_projects(user: dict = Depends(get_api_user)):
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time FROM projects WHERE user_id = ? ORDER BY created_at DESC", (user["id"],))
-    projects = cursor.fetchall()
-    conn.close()
-    return {"projects": [dict(p) for p in projects]}
+    supabase = database.get_supabase_client()
+    projects = []
+    if supabase:
+        response = supabase.table("projects").select("project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        projects = response.data
+    return {"projects": projects}
 
 @app.get("/api/v1/project/{project_id}")
 async def api_v1_project_detail(project_id: str, user: dict = Depends(get_api_user)):
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM projects WHERE project_id = ? AND user_id = ?", (project_id, user["id"]))
-    project = cursor.fetchone()
-    conn.close()
-    if not project:
+    supabase = database.get_supabase_client()
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured")
+    response = supabase.table("projects").select("*").eq("project_id", project_id).eq("user_id", user["id"]).execute()
+    
+    if not response.data:
         raise HTTPException(status_code=404, detail="Project not found")
-    proj_dict = dict(project)
-    proj_dict["project_data"] = json.loads(proj_dict["project_data"])
+    
+    proj_dict = response.data[0]
+    if isinstance(proj_dict.get("project_data"), str):
+        proj_dict["project_data"] = json.loads(proj_dict["project_data"])
     return proj_dict
 
 @app.get("/api/v1/templates")
 async def api_v1_templates(user: dict = Depends(get_api_user)):
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT template_id, template_name, created_at, mapping_json FROM mapping_templates WHERE user_id = ? ORDER BY created_at DESC", (user["id"],))
-    templates = cursor.fetchall()
-    conn.close()
+    supabase = database.get_supabase_client()
+    templates = []
+    if supabase:
+        response = supabase.table("mapping_templates").select("template_id, template_name, created_at, mapping_json").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        templates = response.data
     
     result = []
-    for t in templates:
-        td = dict(t)
-        td["mapping"] = json.loads(td["mapping_json"])
+    for td in templates:
+        td["mapping"] = json.loads(td["mapping_json"]) if isinstance(td["mapping_json"], str) else td["mapping_json"]
         del td["mapping_json"]
         result.append(td)
     return {"templates": result}
 
 @app.get("/api/v1/history")
 async def api_v1_history(user: dict = Depends(get_api_user)):
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time FROM project_history WHERE user_id = ? ORDER BY created_at DESC", (user["id"],))
-    projects = cursor.fetchall()
-    conn.close()
-    return {"history": [dict(p) for p in projects]}
+    supabase = database.get_supabase_client()
+    projects = []
+    if supabase:
+        response = supabase.table("project_history").select("project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+        projects = response.data
+    return {"history": projects}
 
 # ==============================================================================
 # Developer Portal Routes
@@ -1482,16 +1514,14 @@ async def developer_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
+    supabase = database.get_supabase_client()
+    api_keys, automation_rules = [], []
     
-    cursor.execute("SELECT * FROM api_keys WHERE user_id = ? AND is_active = 1", (user["id"],))
-    api_keys = cursor.fetchall()
-    
-    cursor.execute("SELECT * FROM automation_rules WHERE user_id = ?", (user["id"],))
-    automation_rules = cursor.fetchall()
-    
-    conn.close()
+    if supabase:
+        keys_res = supabase.table("api_keys").select("*").eq("user_id", user["id"]).eq("is_active", True).execute()
+        api_keys = keys_res.data
+        rules_res = supabase.table("automation_rules").select("*").eq("user_id", user["id"]).execute()
+        automation_rules = rules_res.data
     
     return templates.TemplateResponse(request=request, name="developer.html", context={
         "user": user, 
@@ -1512,14 +1542,9 @@ async def generate_api_key(request: Request):
         
     new_key = "udip_" + secrets.token_urlsafe(32)
     
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO api_keys (user_id, api_key) VALUES (?, ?)",
-        (user["id"], new_key)
-    )
-    conn.commit()
-    conn.close()
+    supabase = database.get_supabase_client()
+    if supabase:
+        supabase.table("api_keys").insert({"user_id": user["id"], "api_key": new_key}).execute()
     
     return {"success": True, "api_key": new_key}
 
@@ -1529,17 +1554,11 @@ async def revoke_api_key(request: Request, key_id: int):
     if not user:
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?",
-        (key_id, user["id"])
-    )
-    conn.commit()
-    deleted = cursor.rowcount > 0
-    conn.close()
+    supabase = database.get_supabase_client()
+    if supabase:
+        supabase.table("api_keys").update({"is_active": False}).eq("id", key_id).eq("user_id", user["id"]).execute()
     
-    return {"success": deleted}
+    return {"success": True}
 
 @app.post("/api/webhooks")
 async def create_webhook(request: Request, payload: CreateWebhookRequest):
@@ -1550,14 +1569,15 @@ async def create_webhook(request: Request, payload: CreateWebhookRequest):
     import uuid
     rule_id = str(uuid.uuid4())
     
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO automation_rules (rule_id, user_id, rule_name, trigger_type, webhook_url) VALUES (?, ?, ?, ?, ?)",
-        (rule_id, user["id"], payload.rule_name, payload.trigger_type, payload.webhook_url)
-    )
-    conn.commit()
-    conn.close()
+    supabase = database.get_supabase_client()
+    if supabase:
+        supabase.table("automation_rules").insert({
+            "rule_id": rule_id, 
+            "user_id": user["id"], 
+            "rule_name": payload.rule_name, 
+            "trigger_type": payload.trigger_type, 
+            "webhook_url": payload.webhook_url
+        }).execute()
     
     return {"success": True, "rule_id": rule_id}
 
@@ -1567,14 +1587,8 @@ async def delete_webhook(request: Request, rule_id: str):
     if not user:
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
-    conn = database.get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "DELETE FROM automation_rules WHERE rule_id = ? AND user_id = ?",
-        (rule_id, user["id"])
-    )
-    conn.commit()
-    deleted = cursor.rowcount > 0
-    conn.close()
+    supabase = database.get_supabase_client()
+    if supabase:
+        supabase.table("automation_rules").delete().eq("rule_id", rule_id).eq("user_id", user["id"]).execute()
     
-    return {"success": deleted}
+    return {"success": True}

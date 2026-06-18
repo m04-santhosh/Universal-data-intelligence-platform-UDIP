@@ -98,7 +98,7 @@ async def register(request: Request, name: str = Form(...), email: str = Form(..
     if len(password.encode('utf-8')) > 72:
          return templates.TemplateResponse(request=request, name="register.html", context={"error": "Password contains special characters that exceed the maximum allowed size (72 bytes). Please use a shorter password.", "name": name, "email": email})
 
-    if password != confirm_password:
+    if password.strip() != confirm_password.strip():
          return templates.TemplateResponse(request=request, name="register.html", context={"error": "Passwords do not match", "name": name, "email": email})
     
     supabase = database.get_supabase_client()

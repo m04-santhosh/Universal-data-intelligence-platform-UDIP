@@ -180,5 +180,28 @@
             Already have an account? <a href="/login">Sign in</a>
         </div>
     </div>
+    <script>
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            
+            console.log("Password:", password);
+            console.log("Confirm:", confirmPassword);
+            
+            if (password.trim() !== confirmPassword.trim()) {
+                e.preventDefault();
+                
+                // Show error message dynamically
+                let errorDiv = document.querySelector('.error-message');
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.className = 'error-message';
+                    const form = document.querySelector('form');
+                    form.parentNode.insertBefore(errorDiv, form);
+                }
+                errorDiv.textContent = "Passwords do not match";
+            }
+        });
+    </script>
 </body>
 </html>

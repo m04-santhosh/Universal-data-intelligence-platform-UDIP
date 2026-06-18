@@ -856,10 +856,11 @@ async def convert_excel_with_mapping(
         data, entity_resolution_report = perform_entity_resolution(raw_data)
         relationship_graphs = build_relationship_graphs(data)
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(data, indent=2, ensure_ascii=False))
-            
-        file_size = os.path.getsize(filepath)
+        IN_MEMORY_DOWNLOADS[download_id] = data
+        json_bytes = json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8')
+        file_size = len(json_bytes)
+        if file_size == 0:
+            return JSONResponse(status_code=500, content={"success": False, "error": "Generated JSON is completely empty (0 bytes)."})
         sample_records = data[:10]
         
         total_fields = 0
@@ -1288,10 +1289,11 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
         data, entity_resolution_report = perform_entity_resolution(raw_data)
         relationship_graphs = build_relationship_graphs(data)
         
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(json.dumps(data, indent=2, ensure_ascii=False))
-            
-        file_size = os.path.getsize(filepath)
+        IN_MEMORY_DOWNLOADS[download_id] = data
+        json_bytes = json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8')
+        file_size = len(json_bytes)
+        if file_size == 0:
+            return JSONResponse(status_code=500, content={"success": False, "error": "Generated JSON is completely empty (0 bytes)."})
         sample_records = data[:10]
         
         total_fields = 0

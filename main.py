@@ -22,6 +22,8 @@ import auth
 
 app = FastAPI(title="Universal Data Intelligence Platform")
 
+IN_MEMORY_DOWNLOADS = {}
+
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def get_api_user(api_key: str = Depends(api_key_header)):

@@ -71,6 +71,8 @@ async def login_page(request: Request):
 @app.post("/login")
 async def login(request: Request, email: str = Form(...), password: str = Form(...)):
     supabase = database.get_supabase_client()
+    if not supabase:
+        return templates.TemplateResponse(request=request, name="login.html", context={"error": "Database is not configured. Please check SUPABASE_URL and SUPABASE_ANON_KEY environment variables."})
     try:
         response = supabase.auth.sign_in_with_password({"email": email, "password": password})
         if response.session:
@@ -102,6 +104,8 @@ async def register(request: Request, name: str = Form(...), email: str = Form(..
          return templates.TemplateResponse(request=request, name="register.html", context={"error": "Passwords do not match", "name": name, "email": email})
     
     supabase = database.get_supabase_client()
+    if not supabase:
+        return templates.TemplateResponse(request=request, name="register.html", context={"error": "Database is not configured. Please check SUPABASE_URL and SUPABASE_KEY environment variables.", "name": name, "email": email})
     try:
         response = supabase.auth.sign_up({"email": email, "password": password, "options": {"data": {"name": name}}})
         if response.user:

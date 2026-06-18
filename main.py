@@ -126,16 +126,30 @@ async def logout():
 
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
+    print("Dashboard route reached")
+    session = request.cookies.get("session")
+    print("Session:", session)
+    
+    if session is None:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+        
     user = auth.get_current_user(request)
-    if not user:
+    print("Current user:", user)
+    
+    if user is None:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
         
     supabase = database.get_supabase_client()
     projects = []
-    if supabase:
-        response = supabase.table("projects").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
-        projects = response.data
     
+    if supabase:
+        try:
+            response = supabase.table("projects").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            projects = response.data
+        except Exception as e:
+            print(f"Supabase Projects Query Error: {e}")
+            projects = []
+            
     return templates.TemplateResponse(request=request, name="dashboard.html", context={"user": user, "projects": projects})
 
 @app.delete("/api/projects/{project_id}")

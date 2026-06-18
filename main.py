@@ -1401,90 +1401,82 @@ async def download_file(request: Request, download_id: str, format: str = "json"
 
 @app.get("/api/download/json/{job_id}")
 async def download_json(request: Request, job_id: str):
-    print("DOWNLOAD JSON START")
+    print("DOWNLOAD START")
+    print("JOB ID:", job_id)
     try:
         user = auth.get_current_user(request)
         if not user:
-            print("ERROR DETAILS: Unauthorized")
             return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
             
         supabase = database.get_supabase_client()
         if not supabase:
-            print("ERROR DETAILS: Database not configured")
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            res = supabase.table("processing_jobs").select("json_file_url").eq("id", job_id).eq("user_id", user["id"]).execute()
+            res = supabase.table("projects").select("project_id").eq("project_id", job_id).eq("user_id", user["id"]).execute()
+            print("QUERY RESULT:", res.data)
         except Exception as e:
-            print(f"ERROR DETAILS: Supabase DB query failed - {str(e)}")
+            print("ERROR:", str(e))
             return JSONResponse(status_code=500, content={"success": False, "error": "Database query failed"})
 
         if not res.data:
-            print("ERROR DETAILS: Job not found in processing_jobs for this user")
             return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
             
-        print("JOB FOUND")
         json_path = f"{job_id}.json"
         
         try:
             file_bytes = supabase.storage.from_("exports").download(json_path)
-            print("FILE FOUND")
-            print("STORAGE SUCCESS")
             return StreamingResponse(
                 io.BytesIO(file_bytes),
                 media_type="application/json",
                 headers={"Content-Disposition": f"attachment; filename=job_{job_id}.json"}
             )
         except Exception as e:
-            print(f"ERROR DETAILS: Supabase storage download failed - {str(e)}")
+            print("ERROR:", str(e))
             return JSONResponse(status_code=404, content={"success": False, "error": "File not found"})
             
     except Exception as e:
-        print(f"ERROR DETAILS: Unexpected error - {str(e)}")
+        print("ERROR:", str(e))
         return JSONResponse(status_code=500, content={"success": False, "error": "Storage error"})
 
 @app.get("/api/download/pdf/{job_id}")
 async def download_pdf(request: Request, job_id: str):
-    print("DOWNLOAD PDF START")
+    print("DOWNLOAD START")
+    print("JOB ID:", job_id)
     try:
         user = auth.get_current_user(request)
         if not user:
-            print("ERROR DETAILS: Unauthorized")
             return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
             
         supabase = database.get_supabase_client()
         if not supabase:
-            print("ERROR DETAILS: Database not configured")
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            res = supabase.table("processing_jobs").select("pdf_file_url").eq("id", job_id).eq("user_id", user["id"]).execute()
+            res = supabase.table("projects").select("project_id").eq("project_id", job_id).eq("user_id", user["id"]).execute()
+            print("QUERY RESULT:", res.data)
         except Exception as e:
-            print(f"ERROR DETAILS: Supabase DB query failed - {str(e)}")
+            print("ERROR:", str(e))
             return JSONResponse(status_code=500, content={"success": False, "error": "Database query failed"})
 
         if not res.data:
-            print("ERROR DETAILS: Job not found in processing_jobs for this user")
             return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
             
-        print("JOB FOUND")
         pdf_path = f"{job_id}.pdf"
         
         try:
             file_bytes = supabase.storage.from_("exports").download(pdf_path)
-            print("FILE FOUND")
-            print("STORAGE SUCCESS")
             return StreamingResponse(
                 io.BytesIO(file_bytes),
                 media_type="application/pdf",
                 headers={"Content-Disposition": f"attachment; filename=report_{job_id}.pdf"}
             )
         except Exception as e:
-            print(f"ERROR DETAILS: Supabase storage download failed - {str(e)}")
+            print("ERROR:", str(e))
             return JSONResponse(status_code=404, content={"success": False, "error": "File not found"})
             
     except Exception as e:
-        print(f"ERROR DETAILS: Unexpected error - {str(e)}")
+        print("ERROR:", str(e))
         return JSONResponse(status_code=500, content={"success": False, "error": "Storage error"})
 
 # ==============================================================================

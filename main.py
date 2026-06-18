@@ -928,29 +928,36 @@ async def convert_excel_with_mapping(
             "sample_records": sample_records
         }
 
-        try:
-            conn = database.get_db_connection()
-            cursor = conn.cursor()
-            
-            if template_name:
-                template_id = str(uuid.uuid4())
-                cursor.execute(
-                    "INSERT INTO mapping_templates (template_id, user_id, template_name, mapping_json) VALUES (?, ?, ?, ?)",
-                    (template_id, user["id"], template_name, mappings)
-                )
-                
-            cursor.execute(
-                "INSERT INTO projects (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-            )
-            cursor.execute(
-                "INSERT INTO project_history (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
-            )
-            conn.commit()
-            conn.close()
-        except sqlite3.OperationalError as e:
-            logger.error(f"Vercel DB Error in /api/convert_with_mapping: {e} - Skipping INSERT INTO projects & mapping_templates")
+        print("Reached convert_with_mapping")
+        print("Before DB write")
+        
+        # --- DISABLED FOR VERCEL SERVERLESS ---
+        # try:
+        #     conn = database.get_db_connection()
+        #     cursor = conn.cursor()
+        #     
+        #     if template_name:
+        #         template_id = str(uuid.uuid4())
+        #         cursor.execute(
+        #             "INSERT INTO mapping_templates (template_id, user_id, template_name, mapping_json) VALUES (?, ?, ?, ?)",
+        #             (template_id, user["id"], template_name, mappings)
+        #         )
+        #         
+        #     cursor.execute(
+        #         "INSERT INTO projects (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        #         (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
+        #     )
+        #     cursor.execute(
+        #         "INSERT INTO project_history (project_id, user_id, project_name, files_uploaded, records_processed, quality_score, processing_time, project_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        #         (download_id, user["id"], project_name, len(files), len(data), final_score, processing_time, json.dumps(result_payload))
+        #     )
+        #     conn.commit()
+        #     conn.close()
+        # except sqlite3.OperationalError as e:
+        #     logger.error(f"Vercel DB Error in /api/convert_with_mapping: {e} - Skipping INSERT INTO projects & mapping_templates")
+        # -------------------------------------
+        
+        print("After DB write")
         
         # Webhook triggers
         payload = {

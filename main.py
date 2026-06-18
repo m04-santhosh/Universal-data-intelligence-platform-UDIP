@@ -249,8 +249,11 @@ async def templates_page(request: Request):
     supabase = database.get_supabase_client()
     user_templates = []
     if supabase:
-        response = supabase.table("mapping_templates").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
-        user_templates = response.data
+        try:
+            response = supabase.table("mapping_templates").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            user_templates = response.data
+        except Exception:
+            user_templates = []
     
     templates_with_counts = []
     for t in user_templates:
@@ -271,12 +274,15 @@ async def delete_template(request: Request, template_id: str):
     if not supabase:
         return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
         
-    response = supabase.table("mapping_templates").delete().eq("template_id", template_id).eq("user_id", user["id"]).execute()
-    
-    if response.data:
-        return {"success": True}
-    else:
-        return JSONResponse(status_code=404, content={"success": False, "error": "Template not found"})
+    try:
+        response = supabase.table("mapping_templates").delete().eq("template_id", template_id).eq("user_id", user["id"]).execute()
+        
+        if response.data:
+            return {"success": True}
+        else:
+            return JSONResponse(status_code=404, content={"success": False, "error": "Template not found"})
+    except Exception as e:
+        return JSONResponse(status_code=404, content={"success": False, "error": f"Template missing or error: {e}"})
 
 SCHEMA_MAPPING = {
     "customerid": "customer_id",
@@ -571,8 +577,11 @@ async def analyze_files(request: Request, files: list[UploadFile] = File(...)):
         supabase = database.get_supabase_client()
         templates = []
         if supabase:
-            res = supabase.table("mapping_templates").select("template_id, template_name, mapping_json").eq("user_id", user["id"]).execute()
-            templates = res.data
+            try:
+                res = supabase.table("mapping_templates").select("template_id, template_name, mapping_json").eq("user_id", user["id"]).execute()
+                templates = res.data
+            except Exception:
+                templates = []
         
         best_template = None
         best_score = 0
@@ -964,13 +973,16 @@ async def convert_excel_with_mapping(
         if supabase:
             try:
                 if template_name:
-                    template_id = str(uuid.uuid4())
-                    supabase.table("mapping_templates").insert({
-                        "template_id": template_id,
-                        "user_id": user["id"],
-                        "template_name": template_name,
-                        "mapping_json": json.loads(mappings) if isinstance(mappings, str) else mappings
-                    }).execute()
+                    try:
+                        template_id = str(uuid.uuid4())
+                        supabase.table("mapping_templates").insert({
+                            "template_id": template_id,
+                            "user_id": user["id"],
+                            "template_name": template_name,
+                            "mapping_json": json.loads(mappings) if isinstance(mappings, str) else mappings
+                        }).execute()
+                    except Exception as e:
+                        logger.error(f"Failed to insert template: {e}")
                     
                 supabase.table("projects").insert({
                     "project_id": download_id,
@@ -1254,8 +1266,11 @@ async def api_v1_upload(files: list[UploadFile] = File(...), user: dict = Depend
         supabase = database.get_supabase_client()
         templates = []
         if supabase:
-            res = supabase.table("mapping_templates").select("template_id, template_name, mapping_json").eq("user_id", user["id"]).execute()
-            templates = res.data
+            try:
+                res = supabase.table("mapping_templates").select("template_id, template_name, mapping_json").eq("user_id", user["id"]).execute()
+                templates = res.data
+            except Exception:
+                templates = []
         
         best_template = None
         best_score = 0
@@ -1407,13 +1422,16 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
         if supabase:
             try:
                 if template_name:
-                    template_id = str(uuid.uuid4())
-                    supabase.table("mapping_templates").insert({
-                        "template_id": template_id,
-                        "user_id": user["id"],
-                        "template_name": template_name,
-                        "mapping_json": json.loads(mappings) if isinstance(mappings, str) else mappings
-                    }).execute()
+                    try:
+                        template_id = str(uuid.uuid4())
+                        supabase.table("mapping_templates").insert({
+                            "template_id": template_id,
+                            "user_id": user["id"],
+                            "template_name": template_name,
+                            "mapping_json": json.loads(mappings) if isinstance(mappings, str) else mappings
+                        }).execute()
+                    except Exception as e:
+                        pass
                     
                 supabase.table("projects").insert({
                     "project_id": download_id,
@@ -1501,8 +1519,11 @@ async def api_v1_templates(user: dict = Depends(get_api_user)):
     supabase = database.get_supabase_client()
     templates = []
     if supabase:
-        response = supabase.table("mapping_templates").select("template_id, template_name, created_at, mapping_json").eq("user_id", user["id"]).order("created_at", desc=True).execute()
-        templates = response.data
+        try:
+            response = supabase.table("mapping_templates").select("template_id, template_name, created_at, mapping_json").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            templates = response.data
+        except Exception:
+            templates = []
     
     result = []
     for td in templates:

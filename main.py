@@ -956,6 +956,9 @@ async def convert_excel_with_mapping(
         
         result_payload = {
             "success": True,
+            "total_records": len(df_resolved) if 'df_resolved' in locals() else len(data),
+            "processed_records": len(data),
+            "output_file": None,
             "original_columns": original_columns_report,
             "mappings_applied": mappings_applied_report,
             "entity_resolution_report": entity_resolution_report,
@@ -1025,7 +1028,7 @@ async def convert_excel_with_mapping(
         
         return result_payload
     except Exception as e:
-        return JSONResponse(status_code=500, content={"success": False, "error": f"Internal API Error: {str(e)}"})
+        return JSONResponse(status_code=500, content={"success": False, "error": f"Internal API Error: {str(e)}", "total_records": 0, "processed_records": 0, "output_file": None})
 
 class QueryRequest(BaseModel):
     download_id: str

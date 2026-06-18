@@ -461,16 +461,28 @@
             const res = await fetch('/api/convert_with_mapping', { method: 'POST', body: formData });
             const data = await res.json();
             
-            if(data.error) throw new Error(data.error);
+            if (!data) {
+                throw new Error("Backend returned no data");
+            }
+            if (data.error) {
+                throw new Error(data.error);
+            }
+
+            if (data.total_records === undefined) {
+                console.error("Missing total_records", data);
+            }
             
-            currentDownloadId = data.project_id;
+            currentDownloadId = data.project_id || data.download_id;
             
             document.getElementById('mappingSection').classList.add('hidden');
             document.getElementById('uploadSection').classList.add('hidden');
             document.getElementById('resultsSection').classList.remove('hidden');
             
-            document.getElementById('statsTotal').innerText = data.insights.total_records.toLocaleString();
-            document.getElementById('statsScore').innerText = data.insights.quality_metrics.overall_quality_score;
+            const totalRecords = data.total_records !== undefined ? data.total_records : (data.insights && data.insights.total_records ? data.insights.total_records : 0);
+            const score = data.trust_report && data.trust_report.quality_score ? data.trust_report.quality_score : 0;
+            
+            document.getElementById('statsTotal').innerText = totalRecords.toLocaleString();
+            document.getElementById('statsScore').innerText = score;
             
         } catch(e) {
             alert(e.message);

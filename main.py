@@ -196,6 +196,7 @@ async def open_project(request: Request, project_id: str):
 
 @app.get("/history", response_class=HTMLResponse)
 async def history_page(request: Request):
+    print("History route reached")
     user = auth.get_current_user(request)
     if not user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
@@ -203,9 +204,13 @@ async def history_page(request: Request):
     supabase = database.get_supabase_client()
     projects = []
     if supabase:
-        response = supabase.table("project_history").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
-        projects = response.data
-    
+        try:
+            response = supabase.table("project_history").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            projects = response.data
+        except Exception:
+            projects = []
+            
+    print("History records:", projects)
     return templates.TemplateResponse(request=request, name="history.html", context={"user": user, "projects": projects})
 
 @app.post("/api/projects/{project_id}/duplicate")
@@ -1151,11 +1156,17 @@ async def execute_query(request: Request, req: QueryRequest):
     
     try:
         response = interpreter.parse_and_execute(req.query)
-        response["query"] = req.query
-        response["success"] = True
-        return response
+        
+        answer_text = response.get("insight", "")
+        if not answer_text and response.get("result"):
+            answer_text = str(response.get("result"))
+            
+        return {
+            "success": True, 
+            "answer": answer_text
+        }
     except Exception as e:
-        return JSONResponse(status_code=400, content={"success": False, "error": str(e)})
+        return JSONResponse(status_code=400, content={"success": False, "answer": "AI service unavailable"})
 
 @app.get("/api/explore/{download_id}")
 async def explore_records(request: Request, download_id: str, page: int = 1, limit: int = 100, sort_by: str = None, order: str = "asc", search: str = None):
@@ -1540,8 +1551,11 @@ async def api_v1_history(user: dict = Depends(get_api_user)):
     supabase = database.get_supabase_client()
     projects = []
     if supabase:
-        response = supabase.table("project_history").select("project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time").eq("user_id", user["id"]).order("created_at", desc=True).execute()
-        projects = response.data
+        try:
+            response = supabase.table("project_history").select("project_id, project_name, created_at, files_uploaded, records_processed, quality_score, processing_time").eq("user_id", user["id"]).order("created_at", desc=True).execute()
+            projects = response.data
+        except Exception:
+            projects = []
     return {"history": projects}
 
 # ==============================================================================

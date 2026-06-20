@@ -3,176 +3,123 @@
 {% block title %}Dashboard - Universal Data Intelligence Platform{% endblock %}
 
 {% block extra_css %}
-<style>
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 2rem;
-    }
-    
-    .kpi-card {
-        padding: 1.5rem;
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-    
-    .kpi-icon {
-        width: 48px;
-        height: 48px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1.25rem;
-        flex-shrink: 0;
-    }
-    
-    .kpi-icon.primary { background-color: var(--primary-light); color: var(--primary-color); }
-    .kpi-icon.success { background-color: #D1FAE5; color: #059669; }
-    .kpi-icon.warning { background-color: #FEF3C7; color: #D97706; }
-    .kpi-icon.info { background-color: #DBEAFE; color: #2563EB; }
-    .kpi-icon.purple { background-color: #F3E8FF; color: #9333EA; }
-    
-    .kpi-content h4 {
-        margin: 0 0 0.25rem 0;
-        font-size: 0.875rem;
-        color: var(--text-muted);
-        font-weight: 500;
-    }
-    
-    .kpi-content .kpi-value {
-        margin: 0;
-        font-size: 1.5rem;
-        font-weight: 700;
-        color: var(--text-main);
-    }
-</style>
+
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-    <h1 class="page-title">Dashboard Overview</h1>
-    <a href="/" class="btn btn-primary"><i class="fas fa-plus"></i> New Upload</a>
-</div>
 
 {% set ns = namespace(records=0, score_sum=0, score_count=0) %}
 {% for p in projects %}
-    {% set ns.records = ns.records + p.records_processed %}
-    {% set ns.score_sum = ns.score_sum + p.quality_score %}
-    {% set ns.score_count = ns.score_count + 1 %}
+{% set ns.records = ns.records + (p.total_records or 0) %}
+{% set ns.score_sum = ns.score_sum + (p.quality_score or 0) %}
+{% set ns.score_count = ns.score_count + 1 %}
 {% endfor %}
 
-<div class="kpi-grid">
-    <div class="saas-card kpi-card">
-        <div class="kpi-icon primary"><i class="fas fa-folder-open"></i></div>
-        <div class="kpi-content">
-            <h4>Total Projects</h4>
-            <p class="kpi-value">{{ projects | length }}</p>
-        </div>
-    </div>
-    <div class="saas-card kpi-card">
-        <div class="kpi-icon info"><i class="fas fa-database"></i></div>
-        <div class="kpi-content">
-            <h4>Records Processed</h4>
-            <p class="kpi-value">{{ "{:,}".format(ns.records) }}</p>
-        </div>
-    </div>
-    <div class="saas-card kpi-card">
-        <div class="kpi-icon success"><i class="fas fa-shield-alt"></i></div>
-        <div class="kpi-content">
-            <h4>Avg Quality Score</h4>
-            <p class="kpi-value">
-                {% if ns.score_count > 0 %}
-                    {{ (ns.score_sum / ns.score_count) | round(1) }}
-                {% else %}
-                    0
-                {% endif %}
-            </p>
-        </div>
-    </div>
-    <div class="saas-card kpi-card">
-        <div class="kpi-icon warning"><i class="fas fa-file-code"></i></div>
-        <div class="kpi-content">
-            <h4>Active Templates</h4>
-            <p class="kpi-value" id="templateCount">...</p>
-        </div>
-    </div>
-    <div class="saas-card kpi-card">
-        <div class="kpi-icon purple"><i class="fas fa-network-wired"></i></div>
-        <div class="kpi-content">
-            <h4>API Calls</h4>
-            <p class="kpi-value">1,234</p> <!-- Mocked as requested -->
-        </div>
+```
+<div class="saas-card kpi-card">
+    <div class="kpi-icon info"><i class="fas fa-database"></i></div>
+    <div class="kpi-content">
+        <h4>Records Processed</h4>
+        <p class="kpi-value">{{ "{:,}".format(ns.records) }}</p>
     </div>
 </div>
 
-<div class="table-container">
-    <div style="padding: 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-        <h3 style="margin: 0; font-size: 1.125rem;">Recent Projects</h3>
-        <a href="/history" class="btn btn-secondary" style="padding: 0.375rem 0.75rem; font-size: 0.75rem;">View All</a>
+<div class="saas-card kpi-card">
+    <div class="kpi-icon success"><i class="fas fa-shield-alt"></i></div>
+    <div class="kpi-content">
+        <h4>Avg Quality Score</h4>
+        <p class="kpi-value">
+            {% if ns.score_count > 0 %}
+                {{ (ns.score_sum / ns.score_count) | round(1) }}
+            {% else %}
+                0
+            {% endif %}
+        </p>
     </div>
-    {% if projects %}
-    <table class="saas-table">
-        <thead>
-            <tr>
-                <th>Project Name</th>
-                <th>Date Created</th>
-                <th>Files</th>
-                <th>Records</th>
-                <th>Quality Score</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for project in projects[:5] %} <!-- Only show 5 recent on dashboard -->
-            <tr id="project-{{ project.project_id }}">
-                <td style="font-weight: 500;">
-                    <i class="fas fa-file-excel" style="color: #10B981; margin-right: 0.5rem;"></i>
-                    {{ project.project_name }}
-                </td>
-                <td style="color: var(--text-muted);">{{ project.created_at[:16] }}</td>
-                <td>{{ project.files_uploaded }}</td>
-                <td>{{ "{:,}".format(project.records_processed) }}</td>
-                <td>
-                    <span class="badge {% if project.quality_score >= 80 %}badge-success{% elif project.quality_score >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
-                        {{ project.quality_score }}
-                    </span>
-                </td>
-                <td>
-                    <a href="/project/{{ project.project_id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem;">Open</a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-state-icon"><i class="fas fa-folder-open"></i></div>
-        <h3>No projects yet</h3>
-        <p>Get started by uploading your first set of Excel files for processing.</p>
-        <a href="/" class="btn btn-primary"><i class="fas fa-cloud-upload-alt"></i> Upload Data</a>
-    </div>
-    {% endif %}
 </div>
-{% endblock %}
+
+<div class="saas-card kpi-card">
+    <div class="kpi-icon warning"><i class="fas fa-file-code"></i></div>
+    <div class="kpi-content">
+        <h4>Active Templates</h4>
+        <p class="kpi-value" id="templateCount">0</p>
+    </div>
+</div>
+
+<div class="saas-card kpi-card">
+    <div class="kpi-icon purple"><i class="fas fa-network-wired"></i></div>
+    <div class="kpi-content">
+        <h4>API Calls</h4>
+        <p class="kpi-value">1,234</p>
+    </div>
+</div>
+```
+
+```
+{% if projects %}
+<table class="saas-table">
+    <thead>
+        <tr>
+            <th>Project Name</th>
+            <th>Date Created</th>
+            <th>Files</th>
+            <th>Records</th>
+            <th>Quality Score</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for project in projects[:5] %}
+        <tr>
+            <td style="font-weight: 500;">
+                <i class="fas fa-file-excel" style="color: #10B981; margin-right: 0.5rem;"></i>
+                {{ project.project_name }}
+            </td>
+
+            <td style="color: var(--text-muted);">
+                {% if project.created_at %}
+                    {{ project.created_at[:16] }}
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+
+            <td>1</td>
+
+            <td>
+                {{ "{:,}".format(project.total_records or 0) }}
+            </td>
+
+            <td>
+                <span class="badge {% if project.quality_score >= 80 %}badge-success{% elif project.quality_score >= 50 %}badge-warning{% else %}badge-danger{% endif %}">
+                    {{ project.quality_score }}
+                </span>
+            </td>
+
+            <td>
+                <a href="/project/{{ project.id }}" class="btn btn-secondary" style="padding: 0.25rem 0.75rem;">
+                    Open
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% else %}
+<div class="empty-state">
+    <div class="empty-state-icon">
+        <i class="fas fa-folder-open"></i>
+    </div>
+    <h3>No projects yet</h3>
+    <p>Get started by uploading your first set of Excel files for processing.</p>
+    <a href="/" class="btn btn-primary">
+        <i class="fas fa-cloud-upload-alt"></i> Upload Data
+    </a>
+</div>
+{% endif %}
+```
 
 {% block extra_js %}
-<script>
-    // Fetch active templates count
-    document.addEventListener('DOMContentLoaded', async () => {
-        try {
-            const response = await fetch('/api/v1/templates');
-            const data = await response.json();
-            if (data.templates) {
-                document.getElementById('templateCount').textContent = data.templates.length;
-            } else {
-                document.getElementById('templateCount').textContent = '0';
-            }
-        } catch (e) {
-            document.getElementById('templateCount').textContent = '0';
-        }
-    });
-</script>
+
 {% endblock %}

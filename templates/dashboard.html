@@ -15,7 +15,6 @@
 {% set ns.score_count = ns.score_count + 1 %}
 {% endfor %}
 
-```
 <div class="saas-card kpi-card">
     <div class="kpi-icon info"><i class="fas fa-database"></i></div>
     <div class="kpi-content">
@@ -53,9 +52,7 @@
         <p class="kpi-value">1,234</p>
     </div>
 </div>
-```
 
-```
 {% if projects %}
 <table class="saas-table">
     <thead>
@@ -118,7 +115,8 @@
     </a>
 </div>
 {% endif %}
-```
+
+{% endblock %}
 
 {% block extra_js %}
 

@@ -1,7 +1,8 @@
 import json
+import traceback
 from io import BytesIO
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException, Form, Depends, status
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 import pandas as pd
 import re
@@ -228,30 +229,61 @@ async def logout():
 @app.get("/dashboard", response_class=HTMLResponse)
 async def dashboard_page(request: Request):
     print("Dashboard route reached")
-    session = request.cookies.get("session")
-    print("Session:", session)
-    
-    if session is None:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    try:
+        session = request.cookies.get("session")
+        print("Session:", session)
         
-    user = auth.get_current_user(request)
-    print("Current user:", user)
-    
-    if user is None:
-        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-        
-    supabase = database.get_supabase_client()
-    projects = []
-    
-    if supabase:
-        try:
-            response = supabase.table("projects").select("*").eq("user_id", user["id"]).order("created_at", desc=True).execute()
-            projects = response.data
-        except Exception as e:
-            print(f"Supabase Projects Query Error: {e}")
-            projects = []
+        if session is None:
+            return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
             
-    return templates.TemplateResponse(request=request, name="dashboard.html", context={"user": user, "projects": projects})
+        user = auth.get_current_user(request)
+        print("Current user:", user)
+        
+        if user is None:
+            return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+
+        supabase = database.get_supabase_client()
+
+        response = (
+            supabase.table("projects")
+            .select("*")
+            .eq("user_id", user["id"])
+            .order("created_at", desc=True)
+            .execute()
+        )
+
+        projects = response.data
+        
+        # Log the projects data structure
+        print(f"Projects data type: {type(projects)}")
+        print(f"Projects data (first 2 items if list): {projects[:2] if isinstance(projects, list) else projects}")
+
+        try:
+            return templates.TemplateResponse(
+                request=request,
+                name="dashboard.html",
+                context={
+                    "user": user,
+                    "projects": projects
+                }
+            )
+        except Exception as template_error:
+            print("--- TEMPLATE RENDERING FAILED ---")
+            error_traceback = traceback.format_exc()
+            print(error_traceback)
+            return PlainTextResponse(
+                content=f"Template rendering error:\n\n{error_traceback}",
+                status_code=500
+            )
+
+    except Exception as e:
+        print("--- DASHBOARD ROUTE EXCEPTION ---")
+        error_traceback = traceback.format_exc()
+        print(error_traceback)
+        return PlainTextResponse(
+            content=f"Dashboard route error:\n\n{error_traceback}",
+            status_code=500
+        )
 
 @app.delete("/api/projects/{project_id}")
 async def delete_project(request: Request, project_id: str):

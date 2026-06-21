@@ -1328,22 +1328,27 @@ async def convert_excel_with_mapping(
         return JSONResponse(status_code=500, content={"success": False, "error": f"Internal API Error: {str(e)}", "total_records": 0, "processed_records": 0, "output_file": None})
 
 class QueryRequest(BaseModel):
-    download_id: str
+    project_id: str
     query: str
 
 class AskYourDataAIInterpreter:
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame = None, processing_results: dict = None):
         self.df = df
+        self.processing_results = processing_results or {}
         self.suggested_questions = [
-            "Summarize dataset",
-            "Show data quality issues",
-            "Find duplicate customers",
-            "Revenue analysis"
+            "What are the key insights?",
+            "What recommendations do you have?",
+            "Summarize the data",
+            "Show quality issues"
         ]
         
     def detect_intent(self, query: str):
         q = query.lower()
-        if any(w in q for w in ["summarize", "summary", "tell me about", "overview"]):
+        if any(w in q for w in ["insight", "key insight", "learnings"]):
+            return "KEY_INSIGHTS", 95
+        elif any(w in q for w in ["recommendation", "suggest", "improve"]):
+            return "RECOMMENDATIONS", 95
+        elif any(w in q for w in ["summarize", "summary", "tell me about", "overview"]):
             return "SUMMARY", 95
         elif any(w in q for w in ["quality", "issues", "problem", "clean", "messy"]):
             return "DATA_QUALITY", 95
@@ -1355,7 +1360,7 @@ class AskYourDataAIInterpreter:
             return "AVERAGE", 90
         elif any(w in q for w in ["total", "sum", "revenue analysis"]):
             return "SUM", 85
-        elif any(w in q for w in ["duplicate", "copy"]):
+        elif any(w in q for w in ["duplicate", "copy", "find duplicate"]):
             return "DUPLICATE_CHECK", 95
         elif any(w in q for w in ["missing", "null", "empty", "blank"]):
             return "MISSING_VALUE_CHECK", 95
@@ -1369,21 +1374,49 @@ class AskYourDataAIInterpreter:
         intent, confidence = self.detect_intent(query)
         q = query.lower()
         
+        if intent == "KEY_INSIGHTS":
+            insights = self.processing_results.get("data_insights", [])
+            if insights:
+                ans = "**Key Insights:**\n" + "\n".join([f"- {i}" for i in insights])
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+            return {"intent": intent, "confidence": confidence, "answer": "No specific insights generated for this dataset."}
+
+        if intent == "RECOMMENDATIONS":
+            recs = self.processing_results.get("recommendations", [])
+            if recs:
+                ans = "**Recommendations:**\n" + "\n".join([f"- {i}" for i in recs])
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+            return {"intent": intent, "confidence": confidence, "answer": "No specific recommendations available."}
+
         if intent == "SUMMARY":
-            total_records = len(self.df)
-            total_columns = len(self.df.columns)
-            missing_vals = int(self.df.isnull().sum().sum())
-            duplicates = int(self.df.duplicated().sum())
-            quality_score = 100 - min(100, int((missing_vals + duplicates * 2) / max(total_records, 1) * 100))
-            ans = f"**Dataset Summary:**\n- **Total Records:** {total_records}\n- **Total Columns:** {total_columns}\n- **Missing Values:** {missing_vals}\n- **Duplicate Records:** {duplicates}\n- **Estimated Quality Score:** {quality_score}/100\n- **Key Observation:** This dataset is quite {'clean' if quality_score > 80 else 'messy'}."
-            return {"intent": intent, "confidence": confidence, "answer": ans}
+            if self.df is not None:
+                total_records = len(self.df)
+                total_columns = len(self.df.columns)
+                missing_vals = int(self.df.isnull().sum().sum())
+                duplicates = int(self.df.duplicated().sum())
+                quality_score = 100 - min(100, int((missing_vals + duplicates * 2) / max(total_records, 1) * 100))
+                ans = f"**Dataset Summary:**\n- **Total Records:** {total_records}\n- **Total Columns:** {total_columns}\n- **Missing Values:** {missing_vals}\n- **Duplicate Records:** {duplicates}\n- **Estimated Quality Score:** {quality_score}/100\n- **Key Observation:** This dataset is quite {'clean' if quality_score > 80 else 'messy'}."
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+            else:
+                tr = self.processing_results.get("trust_report", {})
+                ans = f"**Dataset Summary:**\n- **Quality Score:** {tr.get('final_score', 0)}/100\n- **Completeness:** {tr.get('completeness_score', 0)}\n- **Consistency:** {tr.get('consistency_score', 0)}\nThis project was processed successfully."
+                return {"intent": intent, "confidence": confidence, "answer": ans}
             
         if intent == "DATA_QUALITY":
-            missing_vals = int(self.df.isnull().sum().sum())
-            duplicates = int(self.df.duplicated().sum())
-            null_pct = round((missing_vals / (len(self.df) * len(self.df.columns))) * 100, 2) if len(self.df) > 0 else 0
-            ans = f"**Data Quality Issues:**\n- **Total Missing Values:** {missing_vals} ({null_pct}%)\n- **Duplicate Records:** {duplicates}\n- **Action:** Consider running normalization to fill missing gaps and deduplicate rows."
-            return {"intent": intent, "confidence": confidence, "answer": ans}
+            if self.df is not None:
+                missing_vals = int(self.df.isnull().sum().sum())
+                duplicates = int(self.df.duplicated().sum())
+                null_pct = round((missing_vals / (len(self.df) * len(self.df.columns))) * 100, 2) if len(self.df) > 0 else 0
+                ans = f"**Data Quality Issues:**\n- **Total Missing Values:** {missing_vals} ({null_pct}%)\n- **Duplicate Records:** {duplicates}\n- **Action:** Consider running normalization to fill missing gaps and deduplicate rows."
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+            else:
+                tr = self.processing_results.get("trust_report", {})
+                er = self.processing_results.get("entity_resolution_report", {})
+                ans = f"**Data Quality Issues:**\n- **Duplicates Merged:** {er.get('duplicates_merged', 0)}\n- **Conflicts Detected:** {er.get('conflicts_detected', 0)}\n- **Completeness Score:** {tr.get('completeness_score', 0)}\n- **Duplicate Score:** {tr.get('duplicate_score', 0)}"
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+
+        if self.df is None:
+            return {"intent": intent, "confidence": confidence, "answer": f"I understood your intent ({intent}), but I require the raw dataset loaded into memory to compute this."}
 
         if intent == "TOP_N":
             match = re.search(r'(?:top|highest)\s*(\d+)', q)
@@ -1447,7 +1480,7 @@ class AskYourDataAIInterpreter:
             ans = "A filter was requested, but please use a clearer query like 'Show records where age > 30'."
             return {"intent": intent, "confidence": confidence, "answer": ans}
 
-        return {"intent": "UNKNOWN", "confidence": 0, "answer": "I'm sorry, I couldn't understand that query. Try asking 'Summarize dataset' or 'Show data quality issues'."}
+        return {"intent": "UNKNOWN", "confidence": 0, "answer": "I'm sorry, I couldn't understand that query. Try asking 'What are the key insights?' or 'Summarize the data'."}
 
 @app.post("/api/query")
 async def execute_query(request: Request, req: QueryRequest):
@@ -1455,14 +1488,36 @@ async def execute_query(request: Request, req: QueryRequest):
     if not user:
         return JSONResponse(status_code=401, content={"success": False, "error": "Unauthorized"})
         
-    if req.download_id not in IN_MEMORY_DOWNLOADS:
-        raise HTTPException(status_code=404, detail="Data not found in memory (it may have expired)")
+    logger.info(f"AI Query received: project_id={req.project_id}, query={req.query}")
         
-    df = pd.DataFrame(IN_MEMORY_DOWNLOADS[req.download_id])
-    interpreter = AskYourDataAIInterpreter(df)
+    df = None
+    if req.project_id in IN_MEMORY_DOWNLOADS:
+        df = pd.DataFrame(IN_MEMORY_DOWNLOADS[req.project_id])
+        
+    project_data = None
+    supabase = database.get_supabase_client()
+    if supabase:
+        try:
+            res = supabase.table("projects").select("*").eq("id", req.project_id).execute()
+            if not res.data:
+                res = supabase.table("projects").select("*").eq("project_id", req.project_id).execute()
+            if res and res.data:
+                project_data = res.data[0]
+        except Exception as e:
+            logger.error(f"Failed to fetch project for AI Query: {e}")
+            
+    processing_results = {}
+    if project_data and "processing_results" in project_data:
+        processing_results = project_data["processing_results"]
+        
+    if df is None and not processing_results:
+        return JSONResponse(status_code=404, content={"success": False, "answer": "Data not found. Project may have expired or does not exist."})
+        
+    interpreter = AskYourDataAIInterpreter(df=df, processing_results=processing_results)
     
     try:
         response = interpreter.parse_and_execute(req.query)
+        logger.info(f"AI Query executed successfully. Intent: {response.get('intent')}")
         
         return {
             "success": True, 
@@ -1472,7 +1527,8 @@ async def execute_query(request: Request, req: QueryRequest):
             "suggested_questions": interpreter.suggested_questions
         }
     except Exception as e:
-        return JSONResponse(status_code=400, content={"success": False, "answer": "AI service unavailable", "error": str(e)})
+        logger.error(f"AI service error: {e}")
+        return JSONResponse(status_code=400, content={"success": False, "answer": "AI service encountered an error processing your query.", "error": str(e)})
 
 @app.get("/api/explore/{download_id}")
 async def explore_records(request: Request, download_id: str, page: int = 1, limit: int = 100, sort_by: str = None, order: str = "asc", search: str = None):

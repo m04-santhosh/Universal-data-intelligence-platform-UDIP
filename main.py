@@ -1286,105 +1286,120 @@ class QueryRequest(BaseModel):
 class AskYourDataAIInterpreter:
     def __init__(self, df: pd.DataFrame):
         self.df = df
+        self.suggested_questions = [
+            "Summarize dataset",
+            "Show data quality issues",
+            "Find duplicate customers",
+            "Revenue analysis"
+        ]
         
+    def detect_intent(self, query: str):
+        q = query.lower()
+        if any(w in q for w in ["summarize", "summary", "tell me about", "overview"]):
+            return "SUMMARY", 95
+        elif any(w in q for w in ["quality", "issues", "problem", "clean", "messy"]):
+            return "DATA_QUALITY", 95
+        elif "group" in q or "by " in q or ("revenue by" in q or "customers by" in q or "count by" in q):
+            return "GROUP_BY", 90
+        elif ("top" in q or "highest" in q or "best" in q) and ("revenue" in q or "customer" in q or "analysis" in q):
+            return "TOP_N", 92
+        elif any(w in q for w in ["average", "mean", "median"]):
+            return "AVERAGE", 90
+        elif any(w in q for w in ["total", "sum", "revenue analysis"]):
+            return "SUM", 85
+        elif any(w in q for w in ["duplicate", "copy"]):
+            return "DUPLICATE_CHECK", 95
+        elif any(w in q for w in ["missing", "null", "empty", "blank"]):
+            return "MISSING_VALUE_CHECK", 95
+        elif "how many" in q or "count" in q:
+            return "COUNT", 85
+        elif ">" in q or "<" in q or "=" in q or "premium" in q or "from " in q:
+            return "FILTER", 80
+        return "UNKNOWN", 0
+
     def parse_and_execute(self, query: str):
+        intent, confidence = self.detect_intent(query)
         q = query.lower()
         
-        # 1. COUNT
-        if "how many" in q and "unique" in q and "customer" in q:
-            col = next((c for c in self.df.columns if 'customer' in c or 'id' in c), None)
-            if col:
-                count = self.df[col].nunique()
-                return {"intent": "COUNT", "result_type": "scalar", "result": count, "interpretation": f"COUNT(DISTINCT {col})", "insight": f"{count} unique customers found.", "confidence": 95}
-                
-        if "how many customers" in q or "count customers" in q:
-            if "by" not in q:
-                count = len(self.df)
-                return {"intent": "COUNT", "result_type": "scalar", "result": count, "interpretation": f"COUNT(*)", "insight": f"Total of {count} records found.", "confidence": 90}
-                
-        # 7. DUPLICATE_CHECK
-        if "duplicate" in q:
-            dups = self.df[self.df.duplicated(keep=False)]
-            return {"intent": "DUPLICATE_CHECK", "result_type": "dataframe", "result": dups.where(pd.notnull(dups), None).to_dict(orient='records'), "interpretation": "df[df.duplicated()]", "insight": f"Found {len(dups)} duplicated rows.", "confidence": 95}
+        if intent == "SUMMARY":
+            total_records = len(self.df)
+            total_columns = len(self.df.columns)
+            missing_vals = int(self.df.isnull().sum().sum())
+            duplicates = int(self.df.duplicated().sum())
+            quality_score = 100 - min(100, int((missing_vals + duplicates * 2) / max(total_records, 1) * 100))
+            ans = f"**Dataset Summary:**\n- **Total Records:** {total_records}\n- **Total Columns:** {total_columns}\n- **Missing Values:** {missing_vals}\n- **Duplicate Records:** {duplicates}\n- **Estimated Quality Score:** {quality_score}/100\n- **Key Observation:** This dataset is quite {'clean' if quality_score > 80 else 'messy'}."
+            return {"intent": intent, "confidence": confidence, "answer": ans}
             
-        # 8. MISSING_VALUE_CHECK
-        if "missing" in q:
-            if "phone" in q:
-                col = next((c for c in self.df.columns if 'phone' in c), None)
-                if col:
-                    missing = self.df[self.df[col].isnull()]
-                    return {"intent": "MISSING_VALUE_CHECK", "result_type": "dataframe", "result": missing.where(pd.notnull(missing), None).to_dict(orient='records'), "interpretation": f"df[df['{col}'].isnull()]", "insight": f"{len(missing)} records have missing {col}.", "confidence": 95}
-            missing = self.df[self.df.isnull().any(axis=1)]
-            return {"intent": "MISSING_VALUE_CHECK", "result_type": "dataframe", "result": missing.where(pd.notnull(missing), None).to_dict(orient='records'), "interpretation": "df[df.isnull().any(axis=1)]", "insight": f"{len(missing)} records contain at least one missing value.", "confidence": 90}
+        if intent == "DATA_QUALITY":
+            missing_vals = int(self.df.isnull().sum().sum())
+            duplicates = int(self.df.duplicated().sum())
+            null_pct = round((missing_vals / (len(self.df) * len(self.df.columns))) * 100, 2) if len(self.df) > 0 else 0
+            ans = f"**Data Quality Issues:**\n- **Total Missing Values:** {missing_vals} ({null_pct}%)\n- **Duplicate Records:** {duplicates}\n- **Action:** Consider running normalization to fill missing gaps and deduplicate rows."
+            return {"intent": intent, "confidence": confidence, "answer": ans}
 
-        # 6. GROUP_BY
-        if "count" in q and "by" in q:
-            group_col = q.split("by ")[-1].strip()
-            matched_col = next((c for c in self.df.columns if group_col in c), None)
-            if matched_col:
-                res_df = self.df[matched_col].value_counts().reset_index()
-                res_df.columns = [matched_col, 'count']
-                return {"intent": "GROUP_BY", "result_type": "dataframe", "result": res_df.to_dict(orient='records'), "interpretation": f"df['{matched_col}'].value_counts()", "insight": f"Grouped data into {len(res_df)} unique {matched_col} categories.", "confidence": 92}
-
-        # 3. TOP_N
-        if "top" in q and "by" in q:
-            match = re.search(r'top (\d+)', q)
+        if intent == "TOP_N":
+            match = re.search(r'(?:top|highest)\s*(\d+)', q)
             n = int(match.group(1)) if match else 5
-            sort_col = q.split("by ")[-1].strip()
-            matched_col = next((c for c in self.df.columns if sort_col in c), None)
+            matched_col = next((c for c in self.df.columns if 'rev' in c.lower() or 'price' in c.lower() or 'amount' in c.lower() or 'total' in c.lower()), None)
             if matched_col:
                 self.df[matched_col] = pd.to_numeric(self.df[matched_col], errors='coerce')
                 res_df = self.df.nlargest(n, matched_col)
-                return {"intent": "TOP_N", "result_type": "dataframe", "result": res_df.where(pd.notnull(res_df), None).to_dict(orient='records'), "interpretation": f"df.nlargest({n}, '{matched_col}')", "insight": f"Top {n} records based on {matched_col}.", "confidence": 94}
-
-        # 4. AVERAGE
-        if "average" in q or "mean" in q:
-            words = q.split()
-            matched_col = next((c for c in self.df.columns if any(w in c for w in words if len(w) > 3 and w not in ['average', 'mean', 'what', 'the', 'is'])), None)
+                ans = f"Here are the top {n} records based on {matched_col}:\n\n" + res_df.to_markdown()
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+            return {"intent": intent, "confidence": confidence, "answer": "Could not identify a numeric column to sort by (like revenue or amount)."}
+            
+        if intent == "GROUP_BY":
+            if "by " in q:
+                group_col_raw = q.split("by ")[-1].strip()
+                words = group_col_raw.split()
+                group_col = words[0] if words else ""
+            else:
+                group_col = next((c for c in self.df.columns if c.lower() in q), None)
+                
+            matched_col = next((c for c in self.df.columns if group_col in c.lower()), None)
+            if not matched_col and len(self.df.columns) > 0:
+                matched_col = self.df.columns[0] # fallback
+                
             if matched_col:
-                val = pd.to_numeric(self.df[matched_col], errors='coerce').mean()
-                return {"intent": "AVERAGE", "result_type": "scalar", "result": round(val, 2), "interpretation": f"df['{matched_col}'].mean()", "insight": f"Average {matched_col} is {round(val, 2)}.", "confidence": 90}
-
-        # 5. SUM
-        if "total" in q or "sum" in q:
-            words = q.split()
-            matched_col = next((c for c in self.df.columns if any(w in c for w in words if len(w) > 3 and w not in ['total', 'sum', 'what', 'the', 'is'])), None)
+                res_df = self.df[matched_col].value_counts().reset_index()
+                res_df.columns = [matched_col, 'count']
+                ans = f"Count of records grouped by {matched_col}:\n\n" + res_df.head(10).to_markdown()
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+                
+        if intent == "SUM":
+            matched_col = next((c for c in self.df.columns if 'rev' in c.lower() or 'price' in c.lower() or 'amount' in c.lower()), None)
             if matched_col:
                 val = pd.to_numeric(self.df[matched_col], errors='coerce').sum()
-                return {"intent": "SUM", "result_type": "scalar", "result": round(val, 2), "interpretation": f"df['{matched_col}'].sum()", "insight": f"Total {matched_col} is {round(val, 2)}.", "confidence": 90}
-
-        # 2. FILTER (Specific queries like "premium customers", "from Bangalore")
-        if "premium" in q:
-            if 'revenue' in self.df.columns:
-                self.df['revenue'] = pd.to_numeric(self.df['revenue'], errors='coerce')
-                res_df = self.df[self.df['revenue'] >= self.df['revenue'].quantile(0.75)]
-                return {"intent": "FILTER", "result_type": "dataframe", "result": res_df.where(pd.notnull(res_df), None).to_dict(orient='records'), "interpretation": "df[df['revenue'] >= df['revenue'].quantile(0.75)]", "insight": f"Found {len(res_df)} premium records (Top 25% revenue).", "confidence": 88}
+                ans = f"The total {matched_col} is {round(val, 2)}."
+                return {"intent": intent, "confidence": confidence, "answer": ans}
                 
-        if "from " in q:
-            city = q.split("from ")[-1].strip()
-            mask = pd.Series(False, index=self.df.index)
-            for col in self.df.columns:
-                if self.df[col].dtype == 'object':
-                    mask |= self.df[col].astype(str).str.lower().str.contains(city)
-            res_df = self.df[mask]
-            return {"intent": "FILTER", "result_type": "dataframe", "result": res_df.where(pd.notnull(res_df), None).to_dict(orient='records'), "interpretation": f"df[df.str.contains('{city}')]", "insight": f"Found {len(res_df)} records matching '{city}'.", "confidence": 90}
+        if intent == "AVERAGE":
+            matched_col = next((c for c in self.df.columns if 'rev' in c.lower() or 'price' in c.lower() or 'amount' in c.lower() or 'score' in c.lower() or 'age' in c.lower()), None)
+            if matched_col:
+                val = pd.to_numeric(self.df[matched_col], errors='coerce').mean()
+                ans = f"The average {matched_col} is {round(val, 2)}."
+                return {"intent": intent, "confidence": confidence, "answer": ans}
+                
+        if intent == "COUNT":
+            count = self.df.nunique().max() if "unique" in q else len(self.df)
+            ans = f"Found {count} records matching your query."
+            return {"intent": intent, "confidence": confidence, "answer": ans}
+            
+        if intent == "DUPLICATE_CHECK":
+            dups = self.df[self.df.duplicated(keep=False)]
+            ans = f"Found {len(dups)} duplicated rows. " + ("" if len(dups) == 0 else f"\n\nHere is a sample:\n" + dups.head(3).to_markdown())
+            return {"intent": intent, "confidence": confidence, "answer": ans}
+            
+        if intent == "MISSING_VALUE_CHECK":
+            missing = self.df[self.df.isnull().any(axis=1)]
+            ans = f"Found {len(missing)} rows containing missing values. " + ("" if len(missing) == 0 else f"\n\nHere is a sample:\n" + missing.head(3).to_markdown())
+            return {"intent": intent, "confidence": confidence, "answer": ans}
+            
+        if intent == "FILTER":
+            ans = "A filter was requested, but please use a clearer query like 'Show records where age > 30'."
+            return {"intent": intent, "confidence": confidence, "answer": ans}
 
-        # Fallback Filter
-        if ">" in q or "<" in q or "=" in q:
-            parts = re.split(r'(>|<|=)', q)
-            if len(parts) >= 3:
-                col_name = parts[0].replace('where', '').replace('records', '').replace('show', '').strip().split()[-1]
-                op = parts[1]
-                val = float(parts[2].strip())
-                matched_col = next((c for c in self.df.columns if c in col_name or col_name in c), None)
-                if matched_col:
-                    self.df[matched_col] = pd.to_numeric(self.df[matched_col], errors='coerce')
-                    if op == '>': res_df = self.df[self.df[matched_col] > val]
-                    elif op == '<': res_df = self.df[self.df[matched_col] < val]
-                    elif op == '=': res_df = self.df[self.df[matched_col] == val]
-                    return {"intent": "FILTER", "result_type": "dataframe", "result": res_df.where(pd.notnull(res_df), None).to_dict(orient='records'), "interpretation": f"df[df['{matched_col}'] {op} {val}]", "insight": f"Filtered {len(res_df)} records.", "confidence": 95}
-                    
-        return {"intent": "UNKNOWN", "result_type": "scalar", "result": "I'm sorry, I couldn't understand that query. Try asking 'How many unique customers exist?' or 'Show top 5 customers by revenue'.", "interpretation": "Failed to match intent.", "insight": "No insight generated.", "confidence": 0}
+        return {"intent": "UNKNOWN", "confidence": 0, "answer": "I'm sorry, I couldn't understand that query. Try asking 'Summarize dataset' or 'Show data quality issues'."}
 
 @app.post("/api/query")
 async def execute_query(request: Request, req: QueryRequest):
@@ -1401,16 +1416,15 @@ async def execute_query(request: Request, req: QueryRequest):
     try:
         response = interpreter.parse_and_execute(req.query)
         
-        answer_text = response.get("insight", "")
-        if not answer_text and response.get("result"):
-            answer_text = str(response.get("result"))
-            
         return {
             "success": True, 
-            "answer": answer_text
+            "answer": response.get("answer", ""),
+            "intent": response.get("intent", "UNKNOWN"),
+            "confidence": response.get("confidence", 0),
+            "suggested_questions": interpreter.suggested_questions
         }
     except Exception as e:
-        return JSONResponse(status_code=400, content={"success": False, "answer": "AI service unavailable"})
+        return JSONResponse(status_code=400, content={"success": False, "answer": "AI service unavailable", "error": str(e)})
 
 @app.get("/api/explore/{download_id}")
 async def explore_records(request: Request, download_id: str, page: int = 1, limit: int = 100, sort_by: str = None, order: str = "asc", search: str = None):

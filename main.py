@@ -254,9 +254,68 @@ async def dashboard_page(request: Request):
 
         projects = response.data
         
-        # Log the projects data structure
-        print(f"Projects data type: {type(projects)}")
-        print(f"Projects data (first 2 items if list): {projects[:2] if isinstance(projects, list) else projects}")
+        total_projects = len(projects)
+        total_records = 0
+        total_quality_score = 0
+        highest_quality_project = {}
+        lowest_quality_project = {}
+        total_duplicates_merged = 0
+        total_conflicts_detected = 0
+        
+        highest_score = -1
+        lowest_score = 101
+
+        for p in projects:
+            p_name = p.get("project_name", "Unknown")
+            p_records = int(p.get("total_records", 0) or 0)
+            p_score = int(p.get("quality_score", 0) or 0)
+            
+            total_records += p_records
+            total_quality_score += p_score
+            
+            if p_score > highest_score:
+                highest_score = p_score
+                highest_quality_project = {"name": p_name, "score": p_score}
+                
+            if p_score < lowest_score:
+                lowest_score = p_score
+                lowest_quality_project = {"name": p_name, "score": p_score}
+                
+            processing_results = p.get("processing_results", {})
+            if isinstance(processing_results, str):
+                import json
+                try:
+                    processing_results = json.loads(processing_results)
+                except:
+                    processing_results = {}
+                    
+            if processing_results:
+                er_report = processing_results.get("entity_resolution_report", {})
+                if isinstance(er_report, dict):
+                    total_duplicates_merged += int(er_report.get("duplicates_merged", 0) or 0)
+                    total_conflicts_detected += int(er_report.get("conflicts_detected", 0) or 0)
+                    
+        average_quality_score = round(total_quality_score / total_projects) if total_projects > 0 else 0
+        
+        if total_projects == 0:
+            highest_quality_project = {}
+            lowest_quality_project = {}
+            
+        dashboard_stats = {
+            "total_projects": total_projects,
+            "total_records": total_records,
+            "average_quality_score": average_quality_score,
+            "highest_quality_project": highest_quality_project,
+            "lowest_quality_project": lowest_quality_project,
+            "total_duplicates_merged": total_duplicates_merged,
+            "total_conflicts_detected": total_conflicts_detected,
+            "recent_projects": projects[:10]
+        }
+        
+        print("DASHBOARD LOADED")
+        print("TOTAL PROJECTS:", total_projects)
+        print("TOTAL RECORDS:", total_records)
+        print("AVERAGE QUALITY:", average_quality_score)
 
         try:
             return templates.TemplateResponse(
@@ -264,7 +323,8 @@ async def dashboard_page(request: Request):
                 name="dashboard.html",
                 context={
                     "user": user,
-                    "projects": projects
+                    "projects": projects,
+                    "dashboard_stats": dashboard_stats
                 }
             )
         except Exception as template_error:
@@ -1477,8 +1537,7 @@ async def download_json(request: Request, job_id: str):
 
 @app.get("/api/download/pdf/{job_id}")
 async def download_pdf(request: Request, job_id: str):
-    print("DOWNLOAD START")
-    print("JOB ID:", job_id)
+    print("PDF REQUEST:", job_id)
     try:
         user = auth.get_current_user(request)
         if not user:
@@ -1489,34 +1548,183 @@ async def download_pdf(request: Request, job_id: str):
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            print(f"INCOMING ID: {job_id}")
-            print("QUERY COLUMN USED: id")
-            res = supabase.table("projects").select("project_id").eq("id", job_id).eq("user_id", user["id"]).execute()
-            print("QUERY RESULT:", res.data)
+            project = supabase.table("projects").select("*").eq("id", job_id).eq("user_id", user["id"]).single().execute()
         except Exception as e:
             print("ERROR:", str(e))
-            return JSONResponse(status_code=500, content={"success": False, "error": "Database query failed"})
+            return JSONResponse(status_code=404, content={"success": False, "error": "Project not found or query failed"})
 
-        if not res.data:
-            return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
+        if not project.data:
+            return JSONResponse(status_code=404, content={"success": False, "error": "Project not found"})
             
-        actual_project_id = res.data[0]["project_id"]
-        pdf_path = f"{actual_project_id}.pdf"
+        print("PROJECT FOUND")
         
-        try:
-            file_bytes = supabase.storage.from_("exports").download(pdf_path)
-            return StreamingResponse(
-                io.BytesIO(file_bytes),
-                media_type="application/pdf",
-                headers={"Content-Disposition": f"attachment; filename=report_{actual_project_id}.pdf"}
-            )
-        except Exception as e:
-            print("ERROR:", str(e))
-            return JSONResponse(status_code=404, content={"success": False, "error": "File not found"})
+        project_data = project.data
+        processing_results = project_data.get("processing_results", {})
+        
+        if isinstance(processing_results, str):
+            import json
+            try:
+                processing_results = json.loads(processing_results)
+            except Exception:
+                processing_results = {}
+                
+        if not processing_results:
+            return JSONResponse(status_code=404, content={"success": False, "error": "Processing results not found"})
+
+        print("PROCESSING RESULTS FOUND")
+        
+        project_name = project_data.get("project_name", "Project_Report")
+        total_records = project_data.get("total_records", 0)
+        quality_score = project_data.get("quality_score", 0)
+        
+        from io import BytesIO
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from fastapi.responses import StreamingResponse
+
+        def esc(text):
+            return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+        pdf_buffer = BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        title_style = styles['Heading1']
+        h2 = styles['Heading2']
+        normal = styles['Normal']
+        
+        # 1. Title
+        story.append(Paragraph("UNIVERSAL DATA INTELLIGENCE PLATFORM", title_style))
+        story.append(Spacer(1, 12))
+        
+        # 2. Project Summary
+        story.append(Paragraph("Project Summary", h2))
+        records_processed = processing_results.get("records_processed", processing_results.get("processed_records", total_records))
+        story.append(Paragraph(f"Project Name: {esc(project_name)}", normal))
+        story.append(Paragraph(f"Total Records: {esc(total_records)}", normal))
+        story.append(Paragraph(f"Records Processed: {esc(records_processed)}", normal))
+        story.append(Paragraph(f"Quality Score: {esc(quality_score)}", normal))
+        story.append(Spacer(1, 12))
+        
+        # 3. Trust Report
+        story.append(Paragraph("Trust Report", h2))
+        trust_report = processing_results.get("trust_report", {})
+        breakdown = trust_report.get("score_breakdown", {})
+        final_score = breakdown.get("final_score", trust_report.get("quality_score", quality_score))
+        completeness = breakdown.get("completeness_score", "N/A")
+        consistency = breakdown.get("consistency_score", "N/A")
+        duplicate = breakdown.get("duplicate_score", "N/A")
+        
+        story.append(Paragraph(f"Final Score: {esc(final_score)}", normal))
+        story.append(Paragraph(f"Completeness Score: {esc(completeness)}", normal))
+        story.append(Paragraph(f"Consistency Score: {esc(consistency)}", normal))
+        story.append(Paragraph(f"Duplicate Score: {esc(duplicate)}", normal))
+        story.append(Spacer(1, 12))
+        
+        # 4. Data Catalog
+        story.append(Paragraph("Data Catalog", h2))
+        catalog_data = [["Column Name", "Data Type", "Description"]]
+        catalog = processing_results.get("data_catalog", [])
+        if isinstance(catalog, list):
+            for item in catalog:
+                if isinstance(item, dict):
+                    col_name = item.get("column_name", item.get("field", item.get("name", "")))
+                    d_type = item.get("data_type", item.get("type", ""))
+                    desc = item.get("description", "")
+                    # limit description length so table doesn't overflow easily
+                    desc = str(desc)[:100] + ("..." if len(str(desc)) > 100 else "")
+                    catalog_data.append([esc(col_name), esc(d_type), esc(desc)])
+                elif isinstance(item, str):
+                    catalog_data.append([esc(item), "", ""])
+                    
+        if len(catalog_data) > 1:
+            t = Table(catalog_data, colWidths=[150, 100, 250])
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            story.append(t)
+        else:
+            story.append(Paragraph("No data catalog available.", normal))
+        story.append(Spacer(1, 12))
+        
+        # 5. Mappings Applied
+        story.append(Paragraph("Mappings Applied", h2))
+        mappings = processing_results.get("mappings_applied", [])
+        map_data = [["Original Column", "Canonical Column", "Confidence Score"]]
+        if isinstance(mappings, list):
+            for m in mappings:
+                if isinstance(m, dict):
+                    orig = m.get("original_column", m.get("source", ""))
+                    canon = m.get("canonical_column", m.get("target", ""))
+                    conf = m.get("confidence_score", m.get("confidence", ""))
+                    map_data.append([esc(orig), esc(canon), esc(conf)])
+        if len(map_data) > 1:
+            t2 = Table(map_data, colWidths=[200, 200, 100])
+            t2.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('BOTTOMPADDING', (0,0), (-1,0), 12),
+                ('GRID', (0,0), (-1,-1), 1, colors.black)
+            ]))
+            story.append(t2)
+        else:
+            story.append(Paragraph("No mappings applied.", normal))
+        story.append(Spacer(1, 12))
+        
+        # 6. Insights
+        story.append(Paragraph("Insights", h2))
+        insights = processing_results.get("data_insights", processing_results.get("insights", []))
+        if isinstance(insights, list) and insights:
+            for ins in insights:
+                val = str(ins.get("insight", ins) if isinstance(ins, dict) else ins)
+                story.append(Paragraph(f"• {esc(val)}", normal))
+                story.append(Spacer(1, 4))
+        else:
+            story.append(Paragraph("No insights available.", normal))
+        story.append(Spacer(1, 12))
+        
+        # 7. Recommendations
+        story.append(Paragraph("Recommendations", h2))
+        recs = processing_results.get("recommendations", [])
+        if isinstance(recs, list) and recs:
+            for rec in recs:
+                val = str(rec.get("recommendation", rec) if isinstance(rec, dict) else rec)
+                story.append(Paragraph(f"• {esc(val)}", normal))
+                story.append(Spacer(1, 4))
+        else:
+            story.append(Paragraph("No recommendations available.", normal))
+            
+        doc.build(story)
+        pdf_buffer.seek(0)
+        
+        print("PDF GENERATED")
+        print("PDF DOWNLOAD SUCCESS")
+        
+        safe_filename = "".join([c for c in project_name if c.isalpha() or c.isdigit() or c in (' ', '-', '_')]).rstrip()
+        if not safe_filename:
+            safe_filename = "report"
+            
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_filename}_report.pdf"'
+            }
+        )
             
     except Exception as e:
         print("ERROR:", str(e))
-        return JSONResponse(status_code=500, content={"success": False, "error": "Storage error"})
+        return JSONResponse(status_code=500, content={"success": False, "error": f"PDF generation error: {str(e)}"})
 
 # ==============================================================================
 # REST API (Protected by API Key)

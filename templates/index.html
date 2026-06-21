@@ -489,9 +489,22 @@
             document.getElementById('statsTotal').innerText = totalRecords.toLocaleString();
             document.getElementById('statsScore').innerText = score;
             
-            if (data.json_download) {
+            if (data) {
                 const btnJson = document.getElementById('btnDownloadJson');
-                btnJson.href = data.json_download;
+                btnJson.href = '#';
+                btnJson.onclick = (e) => {
+                    e.preventDefault();
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = projName ? projName + '_results.json' : 'project_results.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                };
                 btnJson.style.display = 'inline-flex';
                 btnJson.style.alignItems = 'center';
                 btnJson.style.gap = '0.5rem';

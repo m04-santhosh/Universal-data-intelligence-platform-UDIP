@@ -29,6 +29,48 @@ import auth
 
 app = FastAPI(title="Universal Data Intelligence Platform")
 
+def parse_upload_file(contents: bytes, filename: str) -> pd.DataFrame:
+    fname = filename.lower()
+    if fname.endswith(('.xlsx', '.xls')):
+        return pd.read_excel(BytesIO(contents))
+    elif fname.endswith('.csv'):
+        return pd.read_csv(BytesIO(contents))
+    elif fname.endswith('.json'):
+        import json
+        try:
+            data = json.loads(contents.decode('utf-8'))
+            if isinstance(data, dict):
+                list_keys = [k for k in data.keys() if isinstance(data[k], list)]
+                if list_keys:
+                    return pd.json_normalize(data[list_keys[0]])
+                else:
+                    return pd.json_normalize([data])
+            elif isinstance(data, list):
+                return pd.json_normalize(data)
+            else:
+                return pd.read_json(BytesIO(contents))
+        except Exception:
+            return pd.read_json(BytesIO(contents))
+    elif fname.endswith('.xml'):
+        import xmltodict
+        try:
+            parsed = xmltodict.parse(contents.decode('utf-8'))
+            def find_list(d):
+                if isinstance(d, list): return d
+                if isinstance(d, dict):
+                    for v in d.values():
+                        res = find_list(v)
+                        if res is not None: return res
+                return None
+            data_list = find_list(parsed)
+            if data_list is None:
+                return pd.json_normalize([parsed])
+            return pd.json_normalize(data_list)
+        except Exception as e:
+            raise ValueError(f"Failed to parse XML: {str(e)}")
+    else:
+        raise ValueError(f"Unsupported file format: {filename}")
+
 IN_MEMORY_DOWNLOADS = {}
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -756,11 +798,14 @@ async def analyze_files(request: Request, files: list[UploadFile] = File(...)):
         all_columns = set()
         
         for file in files:
-            if not file.filename.endswith(('.xlsx', '.xls')):
+            if not file.filename.endswith(('.xlsx', '.xls', '.csv', '.json', '.xml')):
                 return JSONResponse(status_code=400, content={"success": False, "error": f"Invalid file format for {file.filename}."})
             
             contents = await file.read()
-            df = pd.read_excel(BytesIO(contents))
+            try:
+                df = parse_upload_file(contents, file.filename)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"success": False, "error": f"Failed to parse {file.filename}: {str(e)}"})
             for col in df.columns:
                 all_columns.add(str(col))
             # Rewind file pointer so it can be read again in the next request
@@ -837,19 +882,19 @@ async def convert_excel_to_json(request: Request, files: list[UploadFile] = File
         schema_engine = AISchemaDiscoveryEngine(CANONICAL_SCHEMA, SCHEMA_MAPPING)
 
         for file in files:
-            if not file.filename.endswith(('.xlsx', '.xls')):
-                return JSONResponse(status_code=400, content={"success": False, "error": f"Invalid file format for {file.filename}. Please upload only Excel files."})
+            if not file.filename.endswith(('.xlsx', '.xls', '.csv', '.json', '.xml')):
+                return JSONResponse(status_code=400, content={"success": False, "error": f"Invalid file format for {file.filename}."})
             
             try:
                 contents = await file.read()
                 if not contents:
                     return JSONResponse(status_code=400, content={"success": False, "error": f"The file {file.filename} is empty."})
                 
-                # Read the Excel file
+                # Read the file
                 try:
-                    df = pd.read_excel(BytesIO(contents))
+                    df = parse_upload_file(contents, file.filename)
                 except Exception as ve:
-                    return JSONResponse(status_code=400, content={"success": False, "error": f"The Excel file {file.filename} is corrupted. Details: {str(ve)}"})
+                    return JSONResponse(status_code=400, content={"success": False, "error": f"The file {file.filename} parsing failed. Details: {str(ve)}"})
 
                 if df.empty:
                     return JSONResponse(status_code=400, content={"success": False, "error": f"The uploaded Excel file {file.filename} contains no data rows."})
@@ -1073,7 +1118,7 @@ async def convert_excel_with_mapping(
         mapping_dict = json.loads(mappings)
 
         for file in files:
-            if not file.filename.endswith(('.xlsx', '.xls')):
+            if not file.filename.endswith(('.xlsx', '.xls', '.csv', '.json', '.xml')):
                 return JSONResponse(status_code=400, content={"success": False, "error": f"Invalid file format for {file.filename}."})
             
             try:
@@ -1081,7 +1126,10 @@ async def convert_excel_with_mapping(
                 if not contents:
                     continue
                 
-                df = pd.read_excel(BytesIO(contents))
+                try:
+                    df = parse_upload_file(contents, file.filename)
+                except Exception as ve:
+                    return JSONResponse(status_code=400, content={"success": False, "error": f"The file {file.filename} parsing failed. Details: {str(ve)}"})
                 if df.empty:
                     continue
                 
@@ -2007,10 +2055,13 @@ async def api_v1_upload(files: list[UploadFile] = File(...), user: dict = Depend
         schema_engine = AISchemaDiscoveryEngine(CANONICAL_SCHEMA, SCHEMA_MAPPING)
         all_columns = set()
         for file in files:
-            if not file.filename.endswith(('.xlsx', '.xls')):
+            if not file.filename.endswith(('.xlsx', '.xls', '.csv', '.json', '.xml')):
                 return JSONResponse(status_code=400, content={"success": False, "error": f"Invalid file format for {file.filename}."})
             contents = await file.read()
-            df = pd.read_excel(BytesIO(contents))
+            try:
+                df = parse_upload_file(contents, file.filename)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"success": False, "error": f"Failed to parse {file.filename}: {str(e)}"})
             for col in df.columns:
                 all_columns.add(str(col))
             
@@ -2071,13 +2122,16 @@ async def api_v1_process(files: list[UploadFile] = File(...), mappings: str = Fo
         mapping_dict = json.loads(mappings)
 
         for file in files:
-            if not file.filename.endswith(('.xlsx', '.xls')):
+            if not file.filename.endswith(('.xlsx', '.xls', '.csv', '.json', '.xml')):
                 return JSONResponse(status_code=400, content={"success": False, "error": f"Invalid file format for {file.filename}."})
             try:
                 contents = await file.read()
                 if not contents:
                     continue
-                df = pd.read_excel(BytesIO(contents))
+                try:
+                    df = parse_upload_file(contents, file.filename)
+                except Exception as ve:
+                    return JSONResponse(status_code=400, content={"success": False, "error": f"Failed to parse {file.filename}: {str(ve)}"})
                 if df.empty:
                     continue
                 original_columns_report[file.filename] = list(df.columns)

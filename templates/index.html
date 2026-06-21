@@ -509,9 +509,38 @@
                 btnJson.style.alignItems = 'center';
                 btnJson.style.gap = '0.5rem';
             }
-            if (data.pdf_download) {
+            if (data) {
                 const btnPdf = document.getElementById('btnDownloadPdf');
-                btnPdf.href = data.pdf_download;
+                btnPdf.href = '#';
+                btnPdf.onclick = async (e) => {
+                    e.preventDefault();
+                    btnPdf.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating PDF...';
+                    try {
+                        const res = await fetch('/api/generate_pdf_from_payload', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                processing_results: data,
+                                project_name: projName || 'Project_Report'
+                            })
+                        });
+                        if (!res.ok) throw new Error('PDF generation failed');
+                        const blob = await res.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = projName ? projName + '_report.pdf' : 'Project_Report.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    } catch(err) {
+                        alert(err.message);
+                    } finally {
+                        btnPdf.innerHTML = '<i class="fas fa-file-pdf"></i> Download PDF';
+                    }
+                };
                 btnPdf.style.display = 'inline-flex';
                 btnPdf.style.alignItems = 'center';
                 btnPdf.style.gap = '0.5rem';

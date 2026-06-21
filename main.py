@@ -372,19 +372,27 @@ async def open_project(request: Request, project_id: str):
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
         
-    response = supabase.table("projects").select("processing_results").eq("id", project_id).eq("user_id", user["id"]).execute()
+    response = supabase.table("projects").select("*").eq("id", project_id).eq("user_id", user["id"]).execute()
     
     if not response.data or not response.data[0].get("processing_results"):
         raise HTTPException(status_code=404, detail="Project not found")
         
-    project_data = response.data[0]["processing_results"]
-    if isinstance(project_data, dict):
-        project_data = json.dumps(project_data)
-        
-    # We pass the raw JSON string and parse it in the template
-    return templates.TemplateResponse(request=request, name="index.html", context={
-        "user": user, 
-        "initial_project_data": project_data
+    project_record = response.data[0]
+    project_name = project_record.get("project_name", "Untitled Project")
+    project_data = project_record.get("processing_results", {})
+    
+    if isinstance(project_data, str):
+        import json
+        try:
+            project_data = json.loads(project_data)
+        except Exception:
+            project_data = {}
+            
+    return templates.TemplateResponse(request=request, name="project.html", context={
+        "user": user,
+        "project_name": project_name,
+        "project_id": project_id,
+        "processing_results": project_data
     })
 
 @app.get("/history", response_class=HTMLResponse)
@@ -1580,9 +1588,10 @@ async def download_pdf(request: Request, job_id: str):
         from io import BytesIO
         from reportlab.lib.pagesizes import letter
         from reportlab.lib import colors
-        from reportlab.lib.styles import getSampleStyleSheet
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
         from fastapi.responses import StreamingResponse
+        from datetime import datetime
 
         def esc(text):
             return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
@@ -1593,96 +1602,139 @@ async def download_pdf(request: Request, job_id: str):
         story = []
         
         title_style = styles['Heading1']
+        title_style.alignment = 1 # Center
+        h1 = styles['Heading1']
         h2 = styles['Heading2']
         normal = styles['Normal']
         
-        # 1. Title
-        story.append(Paragraph("UNIVERSAL DATA INTELLIGENCE PLATFORM", title_style))
-        story.append(Spacer(1, 12))
-        
-        # 2. Project Summary
-        story.append(Paragraph("Project Summary", h2))
+        # Data extraction
         records_processed = processing_results.get("records_processed", processing_results.get("processed_records", total_records))
-        story.append(Paragraph(f"Project Name: {esc(project_name)}", normal))
-        story.append(Paragraph(f"Total Records: {esc(total_records)}", normal))
-        story.append(Paragraph(f"Records Processed: {esc(records_processed)}", normal))
-        story.append(Paragraph(f"Quality Score: {esc(quality_score)}", normal))
-        story.append(Spacer(1, 12))
-        
-        # 3. Trust Report
-        story.append(Paragraph("Trust Report", h2))
         trust_report = processing_results.get("trust_report", {})
         breakdown = trust_report.get("score_breakdown", {})
+        er_report = processing_results.get("entity_resolution_report", {})
+        
+        duplicates_merged = er_report.get("duplicates_merged", trust_report.get("duplicates_merged", 0))
+        conflicts_detected = er_report.get("conflicts_detected", trust_report.get("conflicts_detected", 0))
+        processing_time = trust_report.get("processing_time", "N/A")
+        records_after_merge = int(records_processed) - int(duplicates_merged)
+        
+        # A. Cover Page
+        story.append(Spacer(1, 100))
+        story.append(Paragraph("<b>UNIVERSAL DATA INTELLIGENCE PLATFORM</b>", title_style))
+        story.append(Spacer(1, 20))
+        story.append(Paragraph(f"<b>Project Name:</b> {esc(project_name)}", title_style))
+        story.append(Spacer(1, 40))
+        story.append(Paragraph(f"<b>Generated Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal))
+        story.append(Paragraph(f"<b>Records Processed:</b> {esc(records_processed)}", normal))
+        story.append(Paragraph(f"<b>Quality Score:</b> {esc(quality_score)}/100", normal))
+        story.append(PageBreak())
+        
+        title_style.alignment = 0 # Reset to left
+        
+        # B. Executive Summary
+        story.append(Paragraph("Executive Summary", h1))
+        story.append(Spacer(1, 12))
+        exec_data = [
+            ["Total Records", esc(total_records)],
+            ["Records After Merge", esc(records_after_merge)],
+            ["Duplicates Merged", esc(duplicates_merged)],
+            ["Conflicts Detected", esc(conflicts_detected)],
+            ["Processing Time", esc(processing_time)]
+        ]
+        t_exec = Table(exec_data, colWidths=[200, 200])
+        t_exec.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('PADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(t_exec)
+        story.append(Spacer(1, 24))
+        
+        # C. Trust Report
+        story.append(Paragraph("Trust Report", h1))
+        story.append(Spacer(1, 12))
         final_score = breakdown.get("final_score", trust_report.get("quality_score", quality_score))
         completeness = breakdown.get("completeness_score", "N/A")
         consistency = breakdown.get("consistency_score", "N/A")
         duplicate = breakdown.get("duplicate_score", "N/A")
+        trust_data = [
+            ["Final Score", esc(final_score)],
+            ["Completeness Score", esc(completeness)],
+            ["Consistency Score", esc(consistency)],
+            ["Duplicate Score", esc(duplicate)]
+        ]
+        t_trust = Table(trust_data, colWidths=[200, 200])
+        t_trust.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('PADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(t_trust)
+        story.append(Spacer(1, 24))
         
-        story.append(Paragraph(f"Final Score: {esc(final_score)}", normal))
-        story.append(Paragraph(f"Completeness Score: {esc(completeness)}", normal))
-        story.append(Paragraph(f"Consistency Score: {esc(consistency)}", normal))
-        story.append(Paragraph(f"Duplicate Score: {esc(duplicate)}", normal))
+        # D. Schema Intelligence
+        story.append(Paragraph("Schema Intelligence", h1))
         story.append(Spacer(1, 12))
-        
-        # 4. Data Catalog
-        story.append(Paragraph("Data Catalog", h2))
-        catalog_data = [["Column Name", "Data Type", "Description"]]
-        catalog = processing_results.get("data_catalog", [])
-        if isinstance(catalog, list):
-            for item in catalog:
-                if isinstance(item, dict):
-                    col_name = item.get("column_name", item.get("field", item.get("name", "")))
-                    d_type = item.get("data_type", item.get("type", ""))
-                    desc = item.get("description", "")
-                    # limit description length so table doesn't overflow easily
-                    desc = str(desc)[:100] + ("..." if len(str(desc)) > 100 else "")
-                    catalog_data.append([esc(col_name), esc(d_type), esc(desc)])
-                elif isinstance(item, str):
-                    catalog_data.append([esc(item), "", ""])
-                    
-        if len(catalog_data) > 1:
-            t = Table(catalog_data, colWidths=[150, 100, 250])
-            t.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,0), colors.grey),
-                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
-                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0,0), (-1,0), 12),
-                ('GRID', (0,0), (-1,-1), 1, colors.black)
-            ]))
-            story.append(t)
-        else:
-            story.append(Paragraph("No data catalog available.", normal))
-        story.append(Spacer(1, 12))
-        
-        # 5. Mappings Applied
-        story.append(Paragraph("Mappings Applied", h2))
         mappings = processing_results.get("mappings_applied", [])
-        map_data = [["Original Column", "Canonical Column", "Confidence Score"]]
+        map_data = [["Original Column", "Canonical Column", "Confidence Score", "Match Type"]]
         if isinstance(mappings, list):
             for m in mappings:
                 if isinstance(m, dict):
                     orig = m.get("original_column", m.get("source", ""))
                     canon = m.get("canonical_column", m.get("target", ""))
                     conf = m.get("confidence_score", m.get("confidence", ""))
-                    map_data.append([esc(orig), esc(canon), esc(conf)])
+                    match = m.get("match_type", "")
+                    map_data.append([esc(orig), esc(canon), esc(conf), esc(match)])
         if len(map_data) > 1:
-            t2 = Table(map_data, colWidths=[200, 200, 100])
-            t2.setStyle(TableStyle([
+            t_map = Table(map_data, colWidths=[150, 150, 100, 100])
+            t_map.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.grey),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
                 ('ALIGN', (0,0), (-1,-1), 'LEFT'),
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('BOTTOMPADDING', (0,0), (-1,0), 12),
-                ('GRID', (0,0), (-1,-1), 1, colors.black)
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('PADDING', (0,0), (-1,-1), 6)
             ]))
-            story.append(t2)
+            story.append(t_map)
         else:
             story.append(Paragraph("No mappings applied.", normal))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 24))
         
-        # 6. Insights
-        story.append(Paragraph("Insights", h2))
+        # E. Data Catalog
+        story.append(Paragraph("Data Catalog", h1))
+        story.append(Spacer(1, 12))
+        catalog_data = [["Column Name", "Data Type", "Null %", "Description"]]
+        catalog = processing_results.get("data_catalog", [])
+        if isinstance(catalog, list):
+            for item in catalog:
+                if isinstance(item, dict):
+                    col_name = item.get("column_name", item.get("field", item.get("name", "")))
+                    d_type = item.get("data_type", item.get("type", ""))
+                    null_pct = item.get("null_percentage", item.get("missing_percentage", "0%"))
+                    desc = item.get("description", "")
+                    desc = str(desc)[:80] + ("..." if len(str(desc)) > 80 else "")
+                    catalog_data.append([esc(col_name), esc(d_type), esc(null_pct), esc(desc)])
+                elif isinstance(item, str):
+                    catalog_data.append([esc(item), "", "", ""])
+                    
+        if len(catalog_data) > 1:
+            t_cat = Table(catalog_data, colWidths=[130, 80, 60, 230])
+            t_cat.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            story.append(t_cat)
+        else:
+            story.append(Paragraph("No data catalog available.", normal))
+        story.append(Spacer(1, 24))
+        
+        # F. Insights
+        story.append(Paragraph("Insights", h1))
+        story.append(Spacer(1, 12))
         insights = processing_results.get("data_insights", processing_results.get("insights", []))
         if isinstance(insights, list) and insights:
             for ins in insights:
@@ -1691,10 +1743,11 @@ async def download_pdf(request: Request, job_id: str):
                 story.append(Spacer(1, 4))
         else:
             story.append(Paragraph("No insights available.", normal))
-        story.append(Spacer(1, 12))
+        story.append(Spacer(1, 24))
         
-        # 7. Recommendations
-        story.append(Paragraph("Recommendations", h2))
+        # G. Recommendations
+        story.append(Paragraph("Recommendations", h1))
+        story.append(Spacer(1, 12))
         recs = processing_results.get("recommendations", [])
         if isinstance(recs, list) and recs:
             for rec in recs:
@@ -1724,6 +1777,207 @@ async def download_pdf(request: Request, job_id: str):
             
     except Exception as e:
         print("ERROR:", str(e))
+        return JSONResponse(status_code=500, content={"success": False, "error": f"PDF generation error: {str(e)}"})
+
+@app.post("/api/generate_pdf_from_payload")
+async def generate_pdf_from_payload(request: Request):
+    try:
+        payload = await request.json()
+        processing_results = payload.get("processing_results", {})
+        project_name = payload.get("project_name", "Project_Report")
+        
+        total_records = processing_results.get("total_records", processing_results.get("insights", {}).get("total_records", 0))
+        quality_score = processing_results.get("trust_report", {}).get("quality_score", 0)
+        
+        from io import BytesIO
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+        from fastapi.responses import StreamingResponse
+        from datetime import datetime
+
+        def esc(text):
+            return str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+        pdf_buffer = BytesIO()
+        doc = SimpleDocTemplate(pdf_buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        
+        title_style = styles['Heading1']
+        title_style.alignment = 1 # Center
+        h1 = styles['Heading1']
+        h2 = styles['Heading2']
+        normal = styles['Normal']
+        
+        # Data extraction
+        records_processed = processing_results.get("records_processed", processing_results.get("processed_records", total_records))
+        trust_report = processing_results.get("trust_report", {})
+        breakdown = trust_report.get("score_breakdown", {})
+        er_report = processing_results.get("entity_resolution_report", {})
+        
+        duplicates_merged = er_report.get("duplicates_merged", trust_report.get("duplicates_merged", 0))
+        conflicts_detected = er_report.get("conflicts_detected", trust_report.get("conflicts_detected", 0))
+        processing_time = trust_report.get("processing_time", "N/A")
+        records_after_merge = int(records_processed) - int(duplicates_merged)
+        
+        # A. Cover Page
+        story.append(Spacer(1, 100))
+        story.append(Paragraph("<b>UNIVERSAL DATA INTELLIGENCE PLATFORM</b>", title_style))
+        story.append(Spacer(1, 20))
+        story.append(Paragraph(f"<b>Project Name:</b> {esc(project_name)}", title_style))
+        story.append(Spacer(1, 40))
+        story.append(Paragraph(f"<b>Generated Date:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", normal))
+        story.append(Paragraph(f"<b>Records Processed:</b> {esc(records_processed)}", normal))
+        story.append(Paragraph(f"<b>Quality Score:</b> {esc(quality_score)}/100", normal))
+        story.append(PageBreak())
+        
+        title_style.alignment = 0 # Reset to left
+        
+        # B. Executive Summary
+        story.append(Paragraph("Executive Summary", h1))
+        story.append(Spacer(1, 12))
+        exec_data = [
+            ["Total Records", esc(total_records)],
+            ["Records After Merge", esc(records_after_merge)],
+            ["Duplicates Merged", esc(duplicates_merged)],
+            ["Conflicts Detected", esc(conflicts_detected)],
+            ["Processing Time", esc(processing_time)]
+        ]
+        t_exec = Table(exec_data, colWidths=[200, 200])
+        t_exec.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('PADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(t_exec)
+        story.append(Spacer(1, 24))
+        
+        # C. Trust Report
+        story.append(Paragraph("Trust Report", h1))
+        story.append(Spacer(1, 12))
+        final_score = breakdown.get("final_score", trust_report.get("quality_score", quality_score))
+        completeness = breakdown.get("completeness_score", "N/A")
+        consistency = breakdown.get("consistency_score", "N/A")
+        duplicate = breakdown.get("duplicate_score", "N/A")
+        trust_data = [
+            ["Final Score", esc(final_score)],
+            ["Completeness Score", esc(completeness)],
+            ["Consistency Score", esc(consistency)],
+            ["Duplicate Score", esc(duplicate)]
+        ]
+        t_trust = Table(trust_data, colWidths=[200, 200])
+        t_trust.setStyle(TableStyle([
+            ('BACKGROUND', (0,0), (0,-1), colors.lightgrey),
+            ('GRID', (0,0), (-1,-1), 1, colors.black),
+            ('PADDING', (0,0), (-1,-1), 6)
+        ]))
+        story.append(t_trust)
+        story.append(Spacer(1, 24))
+        
+        # D. Schema Intelligence
+        story.append(Paragraph("Schema Intelligence", h1))
+        story.append(Spacer(1, 12))
+        mappings = processing_results.get("mappings_applied", [])
+        map_data = [["Original Column", "Canonical Column", "Confidence Score", "Match Type"]]
+        if isinstance(mappings, list):
+            for m in mappings:
+                if isinstance(m, dict):
+                    orig = m.get("original_column", m.get("source", ""))
+                    canon = m.get("canonical_column", m.get("target", ""))
+                    conf = m.get("confidence_score", m.get("confidence", ""))
+                    match = m.get("match_type", "")
+                    map_data.append([esc(orig), esc(canon), esc(conf), esc(match)])
+        if len(map_data) > 1:
+            t_map = Table(map_data, colWidths=[150, 150, 100, 100])
+            t_map.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            story.append(t_map)
+        else:
+            story.append(Paragraph("No mappings applied.", normal))
+        story.append(Spacer(1, 24))
+        
+        # E. Data Catalog
+        story.append(Paragraph("Data Catalog", h1))
+        story.append(Spacer(1, 12))
+        catalog_data = [["Column Name", "Data Type", "Null %", "Description"]]
+        catalog = processing_results.get("data_catalog", [])
+        if isinstance(catalog, list):
+            for item in catalog:
+                if isinstance(item, dict):
+                    col_name = item.get("column_name", item.get("field", item.get("name", "")))
+                    d_type = item.get("data_type", item.get("type", ""))
+                    null_pct = item.get("null_percentage", item.get("missing_percentage", "0%"))
+                    desc = item.get("description", "")
+                    desc = str(desc)[:80] + ("..." if len(str(desc)) > 80 else "")
+                    catalog_data.append([esc(col_name), esc(d_type), esc(null_pct), esc(desc)])
+                elif isinstance(item, str):
+                    catalog_data.append([esc(item), "", "", ""])
+                    
+        if len(catalog_data) > 1:
+            t_cat = Table(catalog_data, colWidths=[130, 80, 60, 230])
+            t_cat.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.grey),
+                ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+                ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('GRID', (0,0), (-1,-1), 1, colors.black),
+                ('PADDING', (0,0), (-1,-1), 6)
+            ]))
+            story.append(t_cat)
+        else:
+            story.append(Paragraph("No data catalog available.", normal))
+        story.append(Spacer(1, 24))
+        
+        # F. Insights
+        story.append(Paragraph("Insights", h1))
+        story.append(Spacer(1, 12))
+        insights = processing_results.get("data_insights", processing_results.get("insights", []))
+        if isinstance(insights, list) and insights:
+            for ins in insights:
+                val = str(ins.get("insight", ins) if isinstance(ins, dict) else ins)
+                story.append(Paragraph(f"• {esc(val)}", normal))
+                story.append(Spacer(1, 4))
+        else:
+            story.append(Paragraph("No insights available.", normal))
+        story.append(Spacer(1, 24))
+        
+        # G. Recommendations
+        story.append(Paragraph("Recommendations", h1))
+        story.append(Spacer(1, 12))
+        recs = processing_results.get("recommendations", [])
+        if isinstance(recs, list) and recs:
+            for rec in recs:
+                val = str(rec.get("recommendation", rec) if isinstance(rec, dict) else rec)
+                story.append(Paragraph(f"• {esc(val)}", normal))
+                story.append(Spacer(1, 4))
+        else:
+            story.append(Paragraph("No recommendations available.", normal))
+            
+        doc.build(story)
+        pdf_buffer.seek(0)
+        
+        safe_filename = "".join([c for c in project_name if c.isalpha() or c.isdigit() or c in (' ', '-', '_')]).rstrip()
+        if not safe_filename:
+            safe_filename = "report"
+            
+        return StreamingResponse(
+            pdf_buffer,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_filename}_report.pdf"'
+            }
+        )
+            
+    except Exception as e:
+        print("ERROR IN PDF GENERATION:", str(e))
         return JSONResponse(status_code=500, content={"success": False, "error": f"PDF generation error: {str(e)}"})
 
 # ==============================================================================

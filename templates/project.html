@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project_name }} - Intelligence Report{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <div>
+            <h1 class="page-title">{{ project_name }}</h1>
+            <p style="color: var(--text-muted); margin-top: 0.5rem;">Project Intelligence View</p>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <a href="/api/download/json/{{ project_id }}" class="btn btn-primary"><i class="fas fa-file-code"></i> Download JSON</a>
+            <a href="/api/download/pdf/{{ project_id }}" class="btn btn-secondary"><i class="fas fa-file-pdf"></i> Download PDF</a>
+        </div>
+    </div>
+</div>
+
+{% set records = processing_results.records_processed | default(processing_results.processed_records | default(0)) %}
+{% set trust = processing_results.trust_report | default({}) %}
+{% set breakdown = trust.score_breakdown | default({}) %}
+{% set er_report = processing_results.entity_resolution_report | default({}) %}
+{% set duplicates = er_report.duplicates_merged | default(trust.duplicates_merged | default(0)) %}
+{% set conflicts = er_report.conflicts_detected | default(trust.conflicts_detected | default(0)) %}
+{% set processing_time = trust.processing_time | default('N/A') %}
+
+<!-- 1. Executive Summary -->
+<h3 style="margin-bottom: 1rem;"><i class="fas fa-chart-line" style="color: var(--primary-color);"></i> Executive Summary</h3>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+    <div class="saas-card kpi-card">
+        <div class="kpi-icon info"><i class="fas fa-database"></i></div>
+        <div class="kpi-content">
+            <h4>Records Processed</h4>
+            <p class="kpi-value">{{ "{:,}".format(records | int) }}</p>
+        </div>
+    </div>
+    <div class="saas-card kpi-card">
+        <div class="kpi-icon success"><i class="fas fa-shield-alt"></i></div>
+        <div class="kpi-content">
+            <h4>Quality Score</h4>
+            <p class="kpi-value">{{ trust.quality_score | default(0) }}</p>
+        </div>
+    </div>
+    <div class="saas-card kpi-card">
+        <div class="kpi-icon warning"><i class="fas fa-object-group"></i></div>
+        <div class="kpi-content">
+            <h4>Duplicates Merged</h4>
+            <p class="kpi-value">{{ "{:,}".format(duplicates | int) }}</p>
+        </div>
+    </div>
+    <div class="saas-card kpi-card">
+        <div class="kpi-icon purple"><i class="fas fa-exclamation-triangle"></i></div>
+        <div class="kpi-content">
+            <h4>Conflicts Detected</h4>
+            <p class="kpi-value">{{ "{:,}".format(conflicts | int) }}</p>
+        </div>
+    </div>
+    <div class="saas-card kpi-card">
+        <div class="kpi-icon info"><i class="fas fa-stopwatch"></i></div>
+        <div class="kpi-content">
+            <h4>Processing Time</h4>
+            <p class="kpi-value" style="font-size: 1.25rem;">{{ processing_time }}</p>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Trust Intelligence -->
+<h3 style="margin-bottom: 1rem;"><i class="fas fa-check-circle" style="color: #10B981;"></i> Trust Intelligence</h3>
+<div class="saas-card" style="margin-bottom: 2rem;">
+    <table class="saas-table">
+        <thead>
+            <tr>
+                <th>Final Score</th>
+                <th>Completeness</th>
+                <th>Consistency</th>
+                <th>Duplicates</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>{{ breakdown.final_score | default(trust.quality_score | default('N/A')) }}</strong></td>
+                <td>{{ breakdown.completeness_score | default('N/A') }}</td>
+                <td>{{ breakdown.consistency_score | default('N/A') }}</td>
+                <td>{{ breakdown.duplicate_score | default('N/A') }}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- 2. Schema Intelligence -->
+<h3 style="margin-bottom: 1rem;"><i class="fas fa-sitemap" style="color: var(--primary-color);"></i> Schema Intelligence</h3>
+<div class="saas-card" style="margin-bottom: 2rem; max-height: 400px; overflow-y: auto;">
+    {% set mappings = processing_results.mappings_applied | default([]) %}
+    {% if mappings %}
+    <table class="saas-table">
+        <thead>
+            <tr>
+                <th>Original Column</th>
+                <th>Canonical Column</th>
+                <th>Confidence Score</th>
+                <th>Match Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in mappings %}
+            <tr>
+                <td>{{ m.original_column | default(m.source | default('-')) }}</td>
+                <td><strong>{{ m.canonical_column | default(m.target | default('-')) }}</strong></td>
+                <td>
+                    {% set conf = m.confidence_score | default(m.confidence | default(0)) %}
+                    <span class="badge {% if conf|float >= 0.8 %}badge-success{% elif conf|float >= 0.5 %}badge-warning{% else %}badge-danger{% endif %}">{{ conf }}</span>
+                </td>
+                <td>{{ m.match_type | default('-') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted); text-align: center; padding: 2rem;">No mappings applied.</p>
+    {% endif %}
+</div>
+
+<!-- 4. Data Catalog -->
+<h3 style="margin-bottom: 1rem;"><i class="fas fa-book" style="color: #F59E0B;"></i> Data Catalog</h3>
+<div class="saas-card" style="margin-bottom: 2rem; max-height: 400px; overflow-y: auto;">
+    {% set catalog = processing_results.data_catalog | default([]) %}
+    {% if catalog %}
+    <table class="saas-table">
+        <thead>
+            <tr>
+                <th>Column Name</th>
+                <th>Data Type</th>
+                <th>Null %</th>
+                <th>Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in catalog %}
+            <tr>
+                <td><strong>{{ c.column_name | default(c.field | default(c.name | default(c))) }}</strong></td>
+                <td>{{ c.data_type | default(c.type | default('-')) }}</td>
+                <td>{{ c.null_percentage | default(c.missing_percentage | default('0%')) }}</td>
+                <td style="max-width: 300px; white-space: normal;">{{ c.description | default('-') }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted); text-align: center; padding: 2rem;">No data catalog available.</p>
+    {% endif %}
+</div>
+
+<!-- 5. Relationship Intelligence -->
+<h3 style="margin-bottom: 1rem;"><i class="fas fa-project-diagram" style="color: #8B5CF6;"></i> Relationship Intelligence</h3>
+<div class="saas-card" style="margin-bottom: 2rem; max-height: 400px; overflow-y: auto;">
+    {% set graphs = processing_results.relationship_graphs | default([]) %}
+    {% if graphs %}
+    <table class="saas-table">
+        <thead>
+            <tr>
+                <th>Entity 1</th>
+                <th>Relationship</th>
+                <th>Entity 2</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for g in graphs %}
+                {% if g is mapping and g.source %}
+                    <tr>
+                        <td>{{ g.source | default('-') }}</td>
+                        <td><span class="badge badge-warning">{{ g.label | default(g.relationship | default('-')) }}</span></td>
+                        <td>{{ g.target | default('-') }}</td>
+                    </tr>
+                {% elif g is mapping and g.edges %}
+                    {% for edge in g.edges | default([]) %}
+                    <tr>
+                        <td>{{ edge.source | default('-') }}</td>
+                        <td><span class="badge badge-warning">{{ edge.label | default(edge.relationship | default('-')) }}</span></td>
+                        <td>{{ edge.target | default('-') }}</td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-muted); text-align: center; padding: 2rem;">No relationships detected.</p>
+    {% endif %}
+</div>
+
+<!-- 6 & 7. AI Insights and Recommendations -->
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+    <div>
+        <h3 style="margin-bottom: 1rem;"><i class="fas fa-lightbulb" style="color: #F59E0B;"></i> AI Insights</h3>
+        <div class="saas-card" style="height: 100%;">
+            {% set insights = processing_results.data_insights | default(processing_results.insights | default([])) %}
+            {% if insights %}
+            <ul style="padding-left: 1.5rem; line-height: 1.8;">
+                {% for ins in insights %}
+                <li>{{ ins.insight | default(ins) }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--text-muted); text-align: center; padding: 2rem;">No insights available.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div>
+        <h3 style="margin-bottom: 1rem;"><i class="fas fa-bullseye" style="color: #10B981;"></i> Recommendations</h3>
+        <div class="saas-card" style="height: 100%;">
+            {% set recs = processing_results.recommendations | default([]) %}
+            {% if recs %}
+            <ul style="padding-left: 1.5rem; line-height: 1.8;">
+                {% for rec in recs %}
+                <li>{{ rec.recommendation | default(rec) }}</li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <p style="color: var(--text-muted); text-align: center; padding: 2rem;">No recommendations available.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}

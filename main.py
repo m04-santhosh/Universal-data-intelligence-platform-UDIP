@@ -1425,8 +1425,7 @@ async def download_file(request: Request, download_id: str, format: str = "json"
 
 @app.get("/api/download/json/{job_id}")
 async def download_json(request: Request, job_id: str):
-    print("DOWNLOAD START")
-    print("JOB ID:", job_id)
+    print("JSON REQUEST:", job_id)
     try:
         user = auth.get_current_user(request)
         if not user:
@@ -1437,34 +1436,30 @@ async def download_json(request: Request, job_id: str):
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            print(f"INCOMING ID: {job_id}")
-            print("QUERY COLUMN USED: id")
-            res = supabase.table("projects").select("project_id").eq("id", job_id).eq("user_id", user["id"]).execute()
-            print("QUERY RESULT:", res.data)
-        except Exception as e:
-            print("ERROR:", str(e))
-            return JSONResponse(status_code=500, content={"success": False, "error": "Database query failed"})
-
-        if not res.data:
-            return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
+            res = supabase.table("projects").select("processing_results").eq("id", job_id).single().execute()
             
-        actual_project_id = res.data[0]["project_id"]
-        json_path = f"{actual_project_id}.json"
-        
-        try:
-            file_bytes = supabase.storage.from_("exports").download(json_path)
-            return StreamingResponse(
-                io.BytesIO(file_bytes),
-                media_type="application/json",
-                headers={"Content-Disposition": f"attachment; filename=job_{actual_project_id}.json"}
-            )
+            processing_results = None
+            if hasattr(res, 'data') and isinstance(res.data, dict):
+                processing_results = res.data.get("processing_results")
+            elif hasattr(res, 'data') and isinstance(res.data, list) and len(res.data) > 0:
+                processing_results = res.data[0].get("processing_results")
+            elif isinstance(res, dict):
+                processing_results = res.get("data", {}).get("processing_results") if "data" in res else res.get("processing_results")
+                
         except Exception as e:
             print("ERROR:", str(e))
-            return JSONResponse(status_code=404, content={"success": False, "error": "File not found"})
+            return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
+
+        if processing_results:
+            print("PROCESSING RESULTS FOUND")
+            print("RETURNING JSON")
+            return JSONResponse(content=processing_results)
+        else:
+            return JSONResponse(status_code=404, content={"success": False, "error": "Processing results not found"})
             
     except Exception as e:
         print("ERROR:", str(e))
-        return JSONResponse(status_code=500, content={"success": False, "error": "Storage error"})
+        return JSONResponse(status_code=500, content={"success": False, "error": "Database error"})
 
 @app.get("/api/download/pdf/{job_id}")
 async def download_pdf(request: Request, job_id: str):

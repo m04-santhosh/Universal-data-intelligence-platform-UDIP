@@ -1425,7 +1425,7 @@ async def download_file(request: Request, download_id: str, format: str = "json"
 
 @app.get("/api/download/json/{job_id}")
 async def download_json(request: Request, job_id: str):
-    print("JSON REQUEST:", job_id)
+    print("JSON DOWNLOAD REQUEST", job_id)
     try:
         user = auth.get_current_user(request)
         if not user:
@@ -1436,24 +1436,38 @@ async def download_json(request: Request, job_id: str):
             return JSONResponse(status_code=500, content={"success": False, "error": "Database not configured"})
             
         try:
-            res = supabase.table("projects").select("processing_results").eq("id", job_id).single().execute()
+            res = supabase.table("projects").select("processing_results, project_name").eq("id", job_id).single().execute()
             
             processing_results = None
+            project_name = "data_export"
+            
             if hasattr(res, 'data') and isinstance(res.data, dict):
                 processing_results = res.data.get("processing_results")
+                project_name = res.data.get("project_name", project_name)
             elif hasattr(res, 'data') and isinstance(res.data, list) and len(res.data) > 0:
                 processing_results = res.data[0].get("processing_results")
+                project_name = res.data[0].get("project_name", project_name)
             elif isinstance(res, dict):
-                processing_results = res.get("data", {}).get("processing_results") if "data" in res else res.get("processing_results")
+                data_dict = res.get("data", {}) if "data" in res else res
+                processing_results = data_dict.get("processing_results")
+                project_name = data_dict.get("project_name", project_name)
                 
         except Exception as e:
             print("ERROR:", str(e))
             return JSONResponse(status_code=404, content={"success": False, "error": "Job not found"})
 
         if processing_results:
-            print("PROCESSING RESULTS FOUND")
-            print("RETURNING JSON")
-            return JSONResponse(content=processing_results)
+            print("JSON FILE GENERATED")
+            print("JSON DOWNLOAD SUCCESS")
+            from fastapi.responses import Response
+            import json
+            return Response(
+                content=json.dumps(processing_results, indent=4),
+                media_type="application/json",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{project_name}.json"'
+                }
+            )
         else:
             return JSONResponse(status_code=404, content={"success": False, "error": "Processing results not found"})
             

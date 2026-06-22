@@ -161,16 +161,18 @@
             <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" id="password" name="password" class="form-control" required placeholder="••••••••">
-                <div style="text-align: right; margin-top: 0.5rem;">
-                    <a href="/forgot-password" style="font-size: 0.875rem; color: var(--primary-color); text-decoration: none; font-weight: 500;">Forgot Password?</a>
-                </div>
             </div>
             
             <button type="submit" class="btn-primary">Sign in</button>
         </form>
 
         <div class="auth-footer">
-            Don't have an account? <a href="/register">Sign up</a>
+            <div style="margin-bottom: 0.5rem;">
+                Don't have an account? <a href="/register">Sign up</a>
+            </div>
+            <div>
+                Forgot your password? <a href="/forgot-password">Reset it</a>
+            </div>
         </div>
     </div>
 </body>

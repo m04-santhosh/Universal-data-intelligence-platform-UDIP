@@ -273,6 +273,41 @@ async def login(request: Request, email: str = Form(...), password: str = Form(.
             return templates.TemplateResponse(request=request, name="login.html", context={"error": "Invalid email or password"})
     except Exception as e:
         return templates.TemplateResponse(request=request, name="login.html", context={"error": "Invalid email or password"})
+@app.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    user = auth.get_current_user(request)
+    if user:
+        return RedirectResponse(url="/dashboard", status_code=status.HTTP_302_FOUND)
+    return templates.TemplateResponse(request=request, name="forgot_password.html")
+
+@app.post("/forgot-password")
+async def forgot_password(request: Request, email: str = Form(...)):
+    supabase = database.get_supabase_client()
+    if not supabase:
+        return templates.TemplateResponse(request=request, name="forgot_password.html", context={"error": "Database is not configured."})
+    try:
+        supabase.auth.reset_password_email(email, options={"redirect_to": f"{request.url.scheme}://{request.url.netloc}/reset-password"})
+        return templates.TemplateResponse(request=request, name="forgot_password.html", context={"success": "Password reset link sent to your email."})
+    except Exception as e:
+        return templates.TemplateResponse(request=request, name="forgot_password.html", context={"error": str(e)})
+
+@app.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    return templates.TemplateResponse(request=request, name="reset_password.html")
+
+@app.post("/reset-password")
+async def reset_password(request: Request, password: str = Form(...), confirm_password: str = Form(...)):
+    if password.strip() != confirm_password.strip():
+         return templates.TemplateResponse(request=request, name="reset_password.html", context={"error": "Passwords do not match"})
+    
+    supabase = database.get_supabase_client()
+    if not supabase:
+        return templates.TemplateResponse(request=request, name="reset_password.html", context={"error": "Database is not configured."})
+    try:
+        supabase.auth.update_user({"password": password})
+        return RedirectResponse(url="/login?reset=true", status_code=status.HTTP_302_FOUND)
+    except Exception as e:
+        return templates.TemplateResponse(request=request, name="reset_password.html", context={"error": str(e)})
 
 @app.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):

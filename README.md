@@ -48,17 +48,31 @@ UDIP is an Enterprise AI-Powered Data Catalog and Natural Language Query Engine 
 ## 📸 Screenshots
 
 ### Dashboard
-![Dashboard](screenshots/Dashboard.png)
+![Dashboard](screenshots/dashboard.png)
 
 ### AI Chat Bot
-![AI Chat Bot](screenshots/AI chat bot.png)
+![AI Chat Bot](screenshots/chatbot.png)
 
 ### Analyzed Template
-![Analyzed Template](screenshots/Analyzed templete.png)
+![Analyzed Template](screenshots/analyzed-template.png)
 
 ### Data Details
-![Data Details](screenshots/Details Of Data (2).png)
+![Data Details](screenshots/data-details.png)
 
+### History Page
+![History](screenshots/history.png)
+
+### Login Page
+![Login](screenshots/login.png)
+
+### Sign In Page
+![Sign In](screenshots/signup.png)
+
+### Template Page
+![Template](screenshots/template.png)
+
+### Upload Page
+![Upload](screenshots/upload.png)
 UDIP is an Enterprise AI-Powered Data Catalog and Natural Language Query Engine built with FastAPI, Pandas, and Vanilla JavaScript...
 ## Enterprise Architecture Summary
 

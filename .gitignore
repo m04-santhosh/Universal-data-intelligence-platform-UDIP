@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual Environment
+venv/
+.env
+
+# Databases
+*.db
+*.sqlite3
+
+# Temporary files
+temp_downloads/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store

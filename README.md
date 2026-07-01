@@ -12,7 +12,11 @@
 
 UDIP is an Enterprise AI-Powered Data Catalog and Natural Language Query Engine built with FastAPI, Pandas, and Vanilla JavaScript. It processes multiple raw Excel files, applies AI-driven schema normalizations, performs entity resolution, and serves the resulting intelligence through an interactive dashboard.
 
-# Universal Data Intelligence Platform (UDIP)
+<p align="center">
+  <a href="https://universal-data-intelligence-platfor.vercel.app" target="_blank">
+    <img src="screenshots/Dashboard.png" alt="UDIP Dashboard" width="90%">
+  </a>
+</p>
 
 ## 🔗 Links
 

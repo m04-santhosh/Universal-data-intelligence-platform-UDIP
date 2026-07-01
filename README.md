@@ -1,3 +1,13 @@
+<p align="center">
+
+![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi)
+![Supabase](https://img.shields.io/badge/Supabase-Database-3FCF8E?logo=supabase)
+![Vercel](https://img.shields.io/badge/Vercel-Deployed-black?logo=vercel)
+![License](https://img.shields.io/badge/License-MIT-yellow)
+
+</p>
+
 # Universal Data Intelligence Platform (UDIP)
 
 UDIP is an Enterprise AI-Powered Data Catalog and Natural Language Query Engine built with FastAPI, Pandas, and Vanilla JavaScript. It processes multiple raw Excel files, applies AI-driven schema normalizations, performs entity resolution, and serves the resulting intelligence through an interactive dashboard.

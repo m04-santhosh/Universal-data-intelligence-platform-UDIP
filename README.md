@@ -17,7 +17,9 @@ UDIP is an Enterprise AI-Powered Data Catalog and Natural Language Query Engine 
     <img src="screenshots/Dashboard.png" alt="UDIP Dashboard" width="90%">
   </a>
 </p>
-
+<p align="center">
+⭐ If you like this project, please consider giving it a Star ⭐
+</p>
 ## 🔗 Links
 
 🌐 Live Demo: https://universal-data-intelligence-platfor.vercel.app
